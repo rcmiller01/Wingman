@@ -1,10 +1,13 @@
+"""FastAPI application entrypoint."""
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.storage import init_db
-from app.api import health_router, inventory_router
+from app.api import health_router, inventory_router, logs_router, facts_router
+from app.scheduler import start_scheduler, stop_scheduler
 
 
 settings = get_settings()
@@ -17,10 +20,12 @@ async def lifespan(app: FastAPI):
     print("[Copilot] Starting Homelab Copilot backend...")
     await init_db()
     print("[Copilot] Database initialized")
+    start_scheduler()
     
     yield
     
     # Shutdown
+    stop_scheduler()
     print("[Copilot] Shutting down...")
 
 
@@ -43,6 +48,8 @@ app.add_middleware(
 # Include routers
 app.include_router(health_router)
 app.include_router(inventory_router)
+app.include_router(logs_router)
+app.include_router(facts_router)
 
 
 @app.get("/")

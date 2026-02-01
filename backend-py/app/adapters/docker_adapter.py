@@ -159,8 +159,10 @@ class DockerAdapter:
         try:
             if " " in line:
                 timestamp_str, content = line.split(" ", 1)
-                # Parse ISO timestamp
+                # Parse ISO timestamp and convert to naive UTC
                 timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                # Convert to naive datetime (UTC) for PostgreSQL
+                timestamp = timestamp.replace(tzinfo=None)
             else:
                 timestamp = datetime.utcnow()
                 content = line
