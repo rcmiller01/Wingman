@@ -120,28 +120,38 @@ export class QdrantService {
     }
 
     private async getEmbedding(text: string): Promise<number[] | null> {
+        const EMBEDDING_TIMEOUT_MS = 30000; // 30 seconds for embeddings
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), EMBEDDING_TIMEOUT_MS);
+
         try {
-            // console.log(`🧠 Generating embedding via ${config.ollamaHost}...`);
             const response = await fetch(`${config.ollamaHost}/api/embeddings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     model: EMBEDDING_MODEL,
                     prompt: text
-                })
+                }),
+                signal: controller.signal
             });
 
             if (!response.ok) {
-                console.error(`Ollama embedding failed (${response.status}): ${await response.text()}`);
+                console.error(`[Qdrant] Ollama embedding failed (${response.status}): ${await response.text()}`);
                 return null;
             }
 
             const data: any = await response.json();
-            if (!data.embedding) console.error('Ollama response missing embedding field');
+            if (!data.embedding) console.error('[Qdrant] Ollama response missing embedding field');
             return data.embedding;
-        } catch (error) {
-            console.error('Failed to generate embedding:', error);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.error('[Qdrant] Embedding generation timed out');
+                return null;
+            }
+            console.error('[Qdrant] Failed to generate embedding:', error);
             return null;
+        } finally {
+            clearTimeout(timeout);
         }
     }
 }

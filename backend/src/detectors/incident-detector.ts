@@ -1,7 +1,5 @@
 import * as cron from 'node-cron';
 import { prisma } from '../db/client.js';
-import { contextProvider } from '../memory/context-provider.js';
-import { config } from '../config/index.js';
 import { agentOrchestrator } from '../agents/orchestrator.js';
 
 const CHECK_INTERVAL_SECONDS = 60;

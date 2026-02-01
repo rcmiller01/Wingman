@@ -9,7 +9,7 @@ export class AnalystAgent extends BaseAgent {
 
     async analyze(incidentSummary: string, incidentDetail: string): Promise<string> {
         // 1. Gather Context
-        console.log(`[Analyst] Gathering intelligence for: ${incidentSummary}`);
+        console.log(`[Analyst] Gathering intelligence for incident`);
         const contextItems = await contextProvider.getContext(`${incidentSummary} ${incidentDetail}`, 5);
         const contextStr = contextProvider.formatContext(contextItems);
 

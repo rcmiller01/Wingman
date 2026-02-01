@@ -155,6 +155,10 @@ export class LogCompressor {
     }
 
     private async generateSummary(logText: string): Promise<string> {
+        const LLM_TIMEOUT_MS = 120000; // 2 minutes
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
         const prompt = `
 You are a DevOps assistant. Analyze the following logs.
 Summarize the key events, errors, and patterns. 
@@ -173,16 +177,23 @@ ${logText}
                     model: config.ollamaModel,
                     prompt: prompt,
                     stream: false
-                })
+                }),
+                signal: controller.signal
             });
 
             if (!response.ok) throw new Error(`Ollama API error: ${response.statusText}`);
 
             const data: any = await response.json();
             return data.response;
-        } catch (error) {
-            console.error('LLM summarization failed:', error);
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.error('[LogCompressor] LLM summarization timed out');
+                return 'Summary generation timed out.';
+            }
+            console.error('[LogCompressor] LLM summarization failed:', error);
             return 'Failed to generate summary.';
+        } finally {
+            clearTimeout(timeout);
         }
     }
 

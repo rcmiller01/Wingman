@@ -29,14 +29,10 @@ export abstract class BaseAgent {
         const systemPrompt = `You are ${this.name}, a ${this.role}.
 Goal: ${this.goal}
 
-Available Tools:
-${this.tools.map(t => `- ${t.name}: ${t.description}`).join('\n')}
-
 Instructions:
 1. Analyze the conversation history.
-2. If you need to use a tool, output JSON: {"tool": "name", "params": {...}}
-3. If you have a final answer or response, just speak normally.
-4. Be concise and professional.
+2. Provide a clear, professional response.
+3. Be concise but thorough.
 `;
 
         const response = await this.callLLM(systemPrompt, history);
@@ -48,6 +44,10 @@ Instructions:
     }
 
     protected async callLLM(systemPrompt: string, history: AgentMessage[]): Promise<string> {
+        const LLM_TIMEOUT_MS = 120000; // 2 minutes
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+
         try {
             // Convert history to Ollama format
             const messages = [
@@ -62,16 +62,23 @@ Instructions:
                     model: config.ollamaModel,
                     messages: messages,
                     stream: false
-                })
+                }),
+                signal: controller.signal
             });
 
             if (!res.ok) throw new Error(`Ollama chat failed: ${res.statusText}`);
 
             const data: any = await res.json();
             return data.message.content;
-        } catch (error) {
+        } catch (error: any) {
+            if (error.name === 'AbortError') {
+                console.error(`[${this.name}] LLM call timed out after ${LLM_TIMEOUT_MS / 1000}s`);
+                return `Analysis timed out. The LLM took too long to respond.`;
+            }
             console.error(`[${this.name}] LLM call failed:`, error);
             return "I encountered an error thinking about this.";
+        } finally {
+            clearTimeout(timeout);
         }
     }
 }

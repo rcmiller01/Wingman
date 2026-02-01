@@ -13,10 +13,14 @@ export class ContextProvider {
      * Retrieve relevant context for a given query (e.g. incident description)
      */
     async getContext(query: string, limit: number = 5): Promise<ContextItem[]> {
-        console.log(`🔍 Searching context for: "${query.substring(0, 50)}..."`);
+        console.log(`[ContextProvider] Searching for: "${query.substring(0, 50)}..."`);
 
         try {
             const results = await qdrantService.search(query, limit);
+
+            if (results.length === 0) {
+                console.log('[ContextProvider] No relevant context found in memory');
+            }
 
             return results.map(hit => ({
                 source: `Memory (${hit.payload.resourceRef})`,
@@ -25,7 +29,7 @@ export class ContextProvider {
                 timestamp: hit.payload.timestamp
             }));
         } catch (error) {
-            console.error('Failed to get context:', error);
+            console.error('[ContextProvider] Failed to get context:', error);
             return [];
         }
     }
