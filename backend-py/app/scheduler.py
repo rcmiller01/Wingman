@@ -5,6 +5,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 
 from app.storage.database import async_session_maker
 from app.collectors import fact_collector, log_collector
+from app.control_plane import incident_detector
 
 
 scheduler = AsyncIOScheduler()
@@ -39,6 +40,19 @@ async def collect_logs_job():
             await db.rollback()
 
 
+async def detect_incidents_job():
+    """Periodic job to detect incidents from facts and logs."""
+    async with async_session_maker() as db:
+        try:
+            detected = await incident_detector.detect_all(db)
+            await db.commit()
+            if detected:
+                print(f"[Scheduler] Detected {len(detected)} new incidents")
+        except Exception as e:
+            print(f"[Scheduler] Incident detection failed: {e}")
+            await db.rollback()
+
+
 async def purge_expired_logs_job():
     """Daily job to purge expired logs."""
     async with async_session_maker() as db:
@@ -67,6 +81,14 @@ def start_scheduler():
         collect_logs_job,
         trigger=IntervalTrigger(minutes=5),
         id="collect_logs",
+        replace_existing=True,
+    )
+    
+    # Detect incidents every 2 minutes
+    scheduler.add_job(
+        detect_incidents_job,
+        trigger=IntervalTrigger(minutes=2),
+        id="detect_incidents",
         replace_existing=True,
     )
     
