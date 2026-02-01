@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { config, hasCloudLLM, hasProxmox } from './config/index.js';
 import { PrismaClient } from '@prisma/client';
+import { inventoryRouter } from './routes/index.js';
+import { startCollector, stopCollector } from './collectors/index.js';
 
 // Initialize Prisma client
 const prisma = new PrismaClient();
@@ -57,14 +59,14 @@ app.get('/ready', async (_req: Request, res: Response) => {
 });
 
 // =============================================================================
-// API Info Endpoint
+// API Routes
 // =============================================================================
 
 app.get('/api/info', (_req: Request, res: Response) => {
     res.json({
         name: 'Homelab Copilot',
         version: '0.1.0',
-        phase: 0,
+        phase: 1,
         capabilities: {
             proxmox: hasProxmox(),
             cloudLlm: hasCloudLLM(),
@@ -72,6 +74,9 @@ app.get('/api/info', (_req: Request, res: Response) => {
         },
     });
 });
+
+// Mount inventory routes
+app.use('/api/inventory', inventoryRouter);
 
 // =============================================================================
 // Error Handler
@@ -95,6 +100,9 @@ async function main() {
         await prisma.$connect();
         console.log('✅ Database connected');
 
+        // Start fact collector
+        startCollector();
+
         app.listen(config.port, () => {
             console.log(`🚀 Homelab Copilot backend listening on port ${config.port}`);
             console.log(`   Environment: ${config.nodeEnv}`);
@@ -111,13 +119,16 @@ async function main() {
 // Handle graceful shutdown
 process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
+    stopCollector();
     await prisma.$disconnect();
     process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
+    stopCollector();
     await prisma.$disconnect();
     process.exit(0);
 });
 
 main();
+

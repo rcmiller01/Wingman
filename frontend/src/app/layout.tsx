@@ -23,25 +23,24 @@ export default function RootLayout({
                             </div>
                             <div>
                                 <h1 className="text-white font-semibold">Homelab Copilot</h1>
-                                <p className="text-slate-400 text-xs">Phase 0 • Scaffold</p>
+                                <p className="text-slate-400 text-xs">Phase 1 • Observability</p>
                             </div>
                         </div>
 
                         <nav className="space-y-1">
                             <a
                                 href="/"
-                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-white bg-copilot-600/20 border border-copilot-500/30"
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors"
                             >
                                 <span>📊</span>
                                 <span>Dashboard</span>
                             </a>
                             <a
-                                href="#"
-                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/50 transition-colors"
+                                href="/inventory"
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-white bg-copilot-600/20 border border-copilot-500/30"
                             >
                                 <span>🖥️</span>
-                                <span className="opacity-50">Inventory</span>
-                                <span className="ml-auto text-xs bg-slate-700 px-2 py-0.5 rounded">Soon</span>
+                                <span>Inventory</span>
                             </a>
                             <a
                                 href="#"
