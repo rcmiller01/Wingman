@@ -1,0 +1,169 @@
+// Prisma schema for Homelab Copilot
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Facts - Normalized observations from adapters
+// =============================================================================
+model Fact {
+  id          String   @id @default(uuid())
+  resourceRef String   @map("resource_ref") // e.g., "docker://container_id", "proxmox://node/vmid"
+  factType    String   @map("fact_type")    // e.g., "container_status", "vm_memory_usage"
+  value       Json                          // Structured fact data
+  timestamp   DateTime @default(now())
+  source      String                        // Adapter that produced this fact
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([resourceRef])
+  @@index([factType])
+  @@index([timestamp])
+  @@map("facts")
+}
+
+// =============================================================================
+// Logs - Container/file logs with retention metadata
+// =============================================================================
+model Log {
+  id            String   @id @default(uuid())
+  resourceRef   String   @map("resource_ref")
+  logSource     String   @map("log_source")   // "stdout", "stderr", "file:/path"
+  content       String                         // Log line content
+  level         String?                        // Parsed log level if available
+  timestamp     DateTime                        // Log timestamp
+  
+  retentionDate DateTime @map("retention_date") // When this log expires (90 days from creation)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([resourceRef])
+  @@index([timestamp])
+  @@index([retentionDate])
+  @@map("logs")
+}
+
+// =============================================================================
+// Log Summary Documents - Compressed summaries of purged logs
+// =============================================================================
+model LogSummaryDocument {
+  id            String   @id @default(uuid())
+  resourceRef   String   @map("resource_ref")
+  periodStart   DateTime @map("period_start")
+  periodEnd     DateTime @map("period_end")
+  summary       String                         // AI-generated summary of log patterns
+  errorPatterns Json     @map("error_patterns") // Extracted error signatures
+  
+  retentionDate DateTime @map("retention_date") // 12 months from creation
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([resourceRef])
+  @@index([periodStart, periodEnd])
+  @@map("log_summary_documents")
+}
+
+// =============================================================================
+// Incidents - Detected incidents
+// =============================================================================
+model Incident {
+  id              String    @id @default(uuid())
+  severity        String                        // "low", "medium", "high", "critical"
+  status          String    @default("open")    // "open", "investigating", "resolved", "mitigated"
+  affectedResources Json    @map("affected_resources") // Array of ResourceRefs
+  symptoms        Json                          // Array of fact IDs / event descriptions
+  detectedAt      DateTime  @map("detected_at")
+  resolvedAt      DateTime? @map("resolved_at")
+  
+  narrative       IncidentNarrative?
+  actions         ActionHistory[]
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([severity])
+  @@index([detectedAt])
+  @@map("incidents")
+}
+
+// =============================================================================
+// Incident Narratives - Long-form incident documentation
+// =============================================================================
+model IncidentNarrative {
+  id                   String   @id @default(uuid())
+  incidentId           String   @unique @map("incident_id")
+  incident             Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  
+  timeRange            Json     @map("time_range")           // { start, end }
+  rootCauseHypothesis  String?  @map("root_cause_hypothesis")
+  confidence           Float?                                 // 0.0 - 1.0
+  evidenceRefs         Json     @map("evidence_refs")        // Array of fact IDs, error signatures
+  resolutionSteps      Json     @map("resolution_steps")     // Array of TodoStep references
+  verificationResults  Json?    @map("verification_results")
+  outcome              String?                                // "resolved", "mitigated", "unresolved"
+  lessonsLearned       String?  @map("lessons_learned")
+  relatedIncidents     Json?    @map("related_incidents")    // Array of incident IDs
+  
+  // Full narrative text for RAG indexing
+  narrativeText        String   @map("narrative_text")
+  
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("incident_narratives")
+}
+
+// =============================================================================
+// Action History - Audit trail of executed actions
+// =============================================================================
+model ActionHistory {
+  id              String   @id @default(uuid())
+  incidentId      String?  @map("incident_id")
+  incident        Incident? @relation(fields: [incidentId], references: [id])
+  
+  actionTemplate  String   @map("action_template") // From ActionTemplate enum
+  targetResource  String   @map("target_resource") // ResourceRef
+  parameters      Json?                            // Action parameters
+  mode            String                           // "guide" or "assist"
+  
+  status          String   @default("pending")     // "pending", "approved", "executing", "completed", "failed"
+  approvedBy      String?  @map("approved_by")     // User who approved
+  approvedAt      DateTime? @map("approved_at")
+  executedAt      DateTime? @map("executed_at")
+  completedAt     DateTime? @map("completed_at")
+  
+  result          Json?                            // Execution result
+  error           String?                          // Error message if failed
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([incidentId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("action_history")
+}
+
+// =============================================================================
+// Access Logs - Security audit trail
+// =============================================================================
+model AccessLog {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  ipAddress   String?  @map("ip_address")
+  action      String                        // "login", "approve_action", "view_logs", etc.
+  resource    String?                       // What was accessed
+  details     Json?                         // Additional context
+  
+  timestamp   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([timestamp])
+  @@map("access_logs")
+}
