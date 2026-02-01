@@ -2,9 +2,10 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { config, hasCloudLLM, hasProxmox } from './config/index.js';
 import { prisma } from './db/client.js';
-import { inventoryRouter, logRouter } from './routes/index.js';
+import { inventoryRouter, logRouter, incidentRouter } from './routes/index.js';
 import { startCollector, stopCollector } from './collectors/index.js';
 import { LogCollector } from './collectors/log-collector.js';
+import { startDetector, stopDetector } from './detectors/index.js';
 
 // Initialize Express app
 const app = express();
@@ -80,6 +81,8 @@ app.get('/api/info', (_req: Request, res: Response) => {
 app.use('/api/inventory', inventoryRouter);
 // Mount logs routes
 app.use('/api/logs', logRouter);
+// Mount incidents routes
+app.use('/api/incidents', incidentRouter);
 
 // =============================================================================
 // Error Handler
@@ -106,6 +109,9 @@ async function main() {
         // Start fact collector
         startCollector();
 
+        // Start incident detector
+        startDetector();
+
         app.listen(config.port, () => {
             console.log(`🚀 Homelab Copilot backend listening on port ${config.port}`);
             console.log(`   Environment: ${config.nodeEnv}`);
@@ -123,6 +129,7 @@ async function main() {
 process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
     stopCollector();
+    stopDetector();
     // Stop log collector (implicit via process exit, or needs method)
     await prisma.$disconnect();
     process.exit(0);
@@ -130,6 +137,7 @@ process.on('SIGINT', async () => {
 
 process.on('SIGTERM', async () => {
     stopCollector();
+    stopDetector();
     await prisma.$disconnect();
     process.exit(0);
 });

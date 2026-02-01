@@ -29,6 +29,7 @@ export function normalizeDockerContainer(container: DockerContainerInfo): Normal
             name: container.name,
             image: container.image,
             state: container.state,
+            exitCode: container.exitCode,
             status: container.status,
             created: container.created.toISOString(),
             restartCount: container.restartCount,

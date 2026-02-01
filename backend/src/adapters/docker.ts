@@ -8,6 +8,7 @@ export interface DockerContainerInfo {
     name: string;
     image: string;
     state: string;
+    exitCode?: number; // Added for crash detection
     status: string;
     created: Date;
     restartCount: number;
@@ -69,6 +70,7 @@ export async function getContainerInfo(containerId: string): Promise<DockerConta
             name: info.Name.replace(/^\//, ''),
             image: info.Config.Image,
             state: info.State.Status,
+            exitCode: info.State.ExitCode,
             status: info.State.Running ? 'running' : info.State.Status,
             created: new Date(info.Created),
             restartCount: info.RestartCount,
