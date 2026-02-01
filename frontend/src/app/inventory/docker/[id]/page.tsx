@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { LogViewer } from '../../../../components/logs/LogViewer';
+import { getApiUrl } from '@/lib/api-config';
 
 interface DockerContainer {
     id: string;
@@ -31,8 +32,7 @@ export default function ContainerDetailPage() {
 
         async function fetchContainer() {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-                const res = await fetch(`${apiUrl}/api/inventory/docker/${id}`);
+                const res = await fetch(getApiUrl(`/api/inventory/containers/${id}`));
                 if (!res.ok) throw new Error('Container not found');
                 const data = await res.json();
                 setContainer(data);
@@ -82,8 +82,8 @@ export default function ContainerDetailPage() {
                     <h1 className="text-2xl font-bold text-white flex items-center gap-3">
                         {container.name}
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${container.state === 'running'
-                                ? 'bg-emerald-500/20 text-emerald-400'
-                                : 'bg-slate-600/50 text-slate-300'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : 'bg-slate-600/50 text-slate-300'
                             }`}>
                             {container.state}
                         </span>

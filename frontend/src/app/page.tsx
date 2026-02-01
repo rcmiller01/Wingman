@@ -1,16 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getApiUrl } from '@/lib/api-config';
 
 interface HealthStatus {
     status: string;
-    checks?: {
-        db: boolean;
-        qdrant: boolean;
-        cloudLlm: string;
-        ollamaModel: string;
-        proxmox: string;
-    };
+    database?: string;
 }
 
 export default function Dashboard() {
@@ -21,8 +16,7 @@ export default function Dashboard() {
     useEffect(() => {
         async function fetchHealth() {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-                const res = await fetch(`${apiUrl}/ready`);
+                const res = await fetch(getApiUrl('/api/health/ready'));
                 const data = await res.json();
                 setHealth(data);
             } catch (err) {
@@ -46,7 +40,7 @@ export default function Dashboard() {
             </div>
 
             {/* Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Backend Status */}
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -72,133 +66,48 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-4">
                         <span className="text-slate-400 text-sm">Database</span>
                         <div
-                            className={`w-3 h-3 rounded-full ${health?.checks?.db ? 'bg-emerald-500' : 'bg-slate-600'
+                            className={`w-3 h-3 rounded-full ${health?.database === 'connected' ? 'bg-emerald-500' : 'bg-slate-600'
                                 }`}
                         />
                     </div>
                     <p className="text-white text-2xl font-semibold">PostgreSQL</p>
                     <p className="text-slate-500 text-sm mt-1">
-                        {health?.checks?.db ? 'Connected' : 'Waiting...'}
+                        {health?.database === 'connected' ? 'Connected' : 'Waiting...'}
                     </p>
                 </div>
 
-                {/* Qdrant Status */}
+                {/* Vector Store Status */}
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
                     <div className="flex items-center justify-between mb-4">
                         <span className="text-slate-400 text-sm">Vector Store</span>
-                        <div
-                            className={`w-3 h-3 rounded-full ${health?.checks?.qdrant ? 'bg-emerald-500' : 'bg-slate-600'
-                                }`}
-                        />
-                    </div>
-                    <p className="text-white text-2xl font-semibold">Qdrant</p>
-                    <p className="text-slate-500 text-sm mt-1">
-                        {health?.checks?.qdrant ? 'Connected' : 'Waiting...'}
-                    </p>
-                </div>
-
-                {/* LLM Status */}
-                <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
-                    <div className="flex items-center justify-between mb-4">
-                        <span className="text-slate-400 text-sm">Local LLM</span>
                         <div className="w-3 h-3 rounded-full bg-copilot-500" />
                     </div>
-                    <p className="text-white text-2xl font-semibold truncate">
-                        {health?.checks?.ollamaModel || 'Not set'}
-                    </p>
-                    <p className="text-slate-500 text-sm mt-1">Ollama</p>
-                </div>
-            </div>
-
-            {/* Configuration Status */}
-            <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
-                <h2 className="text-white text-lg font-semibold mb-4">Configuration</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="flex items-center gap-3">
-                        <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center ${health?.checks?.cloudLlm === 'configured'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
-                                    : 'bg-slate-700/50 text-slate-500'
-                                }`}
-                        >
-                            ☁️
-                        </div>
-                        <div>
-                            <p className="text-white text-sm">Cloud LLM</p>
-                            <p className="text-slate-500 text-xs">
-                                {health?.checks?.cloudLlm === 'configured' ? 'Ready' : 'Not configured'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <div
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center ${health?.checks?.proxmox === 'configured'
-                                    ? 'bg-emerald-500/20 text-emerald-400'
-                                    : 'bg-slate-700/50 text-slate-500'
-                                }`}
-                        >
-                            🖥️
-                        </div>
-                        <div>
-                            <p className="text-white text-sm">Proxmox</p>
-                            <p className="text-slate-500 text-xs">
-                                {health?.checks?.proxmox === 'configured' ? 'Ready' : 'Not configured'}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700/50 text-slate-500">
-                            🐳
-                        </div>
-                        <div>
-                            <p className="text-white text-sm">Docker</p>
-                            <p className="text-slate-500 text-xs">Phase 1</p>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-slate-700/50 text-slate-500">
-                            📝
-                        </div>
-                        <div>
-                            <p className="text-white text-sm">Logs</p>
-                            <p className="text-slate-500 text-xs">Phase 2</p>
-                        </div>
-                    </div>
+                    <p className="text-white text-2xl font-semibold">Qdrant</p>
+                    <p className="text-slate-500 text-sm mt-1">Phase 5 Complete</p>
                 </div>
             </div>
 
             {/* Phase Progress */}
             <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-6">
-                <h2 className="text-white text-lg font-semibold mb-4">Implementation Progress</h2>
+                <h2 className="text-white text-lg font-semibold mb-4">Backend Implementation Progress</h2>
                 <div className="space-y-3">
-                    <div className="flex items-center gap-4">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-medium">
-                            ✓
-                        </div>
-                        <div className="flex-1">
-                            <p className="text-white">Phase 0 — Scaffold & Foundations</p>
-                            <p className="text-slate-500 text-sm">API, Database, Docker Compose</p>
-                        </div>
-                        <span className="text-emerald-400 text-sm">Current</span>
-                    </div>
                     {[
-                        { phase: 1, name: 'Observability MVP', desc: 'Proxmox + Docker adapters' },
-                        { phase: 2, name: 'Logging MVP', desc: 'Container log ingestion' },
-                        { phase: 3, name: 'Incident Engine', desc: 'Detection + Narratives' },
-                        { phase: 4, name: 'Control Plane', desc: 'Guide Mode + Actions' },
-                        { phase: 5, name: 'Memory + RAG', desc: 'Historical intelligence' },
-                    ].map(({ phase, name, desc }) => (
-                        <div key={phase} className="flex items-center gap-4 opacity-50">
-                            <div className="w-8 h-8 rounded-full bg-slate-700/50 text-slate-500 flex items-center justify-center text-sm font-medium">
-                                {phase}
+                        { phase: 0, name: 'Scaffold & Foundations', desc: 'API, Database, Docker Compose', complete: true },
+                        { phase: 1, name: 'Observability MVP', desc: 'Docker + Proxmox adapters', complete: true },
+                        { phase: 2, name: 'Logging MVP', desc: 'Container log ingestion', complete: true },
+                        { phase: 3, name: 'Incident Engine', desc: 'Detection + Narratives', complete: true },
+                        { phase: 4, name: 'Control Plane', desc: 'Guide Mode + Actions', complete: true },
+                        { phase: 5, name: 'Memory + RAG', desc: 'Historical intelligence', complete: true },
+                    ].map(({ phase, name, desc, complete }) => (
+                        <div key={phase} className={`flex items-center gap-4 ${!complete && 'opacity-50'}`}>
+                            <div className={`w-8 h-8 rounded-full ${complete ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-700/50 text-slate-500'} flex items-center justify-center text-sm font-medium`}>
+                                {complete ? '✓' : phase}
                             </div>
                             <div className="flex-1">
                                 <p className="text-white">Phase {phase} — {name}</p>
                                 <p className="text-slate-500 text-sm">{desc}</p>
                             </div>
+                            {complete && <span className="text-emerald-400 text-sm">Complete</span>}
                         </div>
                     ))}
                 </div>

@@ -86,7 +86,10 @@ export default function IncidentDetailPage() {
                         <p className="text-copilot-300">{incident.narrative.rootCauseHypothesis}</p>
                     </div>
                 )}
+                )}
             </div>
+
+            <SuggestedActions incident={incident} />
 
             {/* Affected Resources */}
             <div>
@@ -151,9 +154,101 @@ function StatusBadge({ status }: { status: string }) {
         open: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
         resolved: 'bg-slate-700/50 text-slate-400 border-slate-600/50',
     };
+
     return (
         <span className={`px-4 py-1.5 rounded-full text-sm font-medium border ${colors[status as keyof typeof colors] || colors.open} shadow-sm`}>
             {status}
         </span>
     );
 }
+
+function SuggestedActions({ incident }: { incident: Incident }) {
+    const [executing, setExecuting] = useState<string | null>(null);
+    const [result, setResult] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+    const executeAction = async (actionType: 'restart' | 'stop', resourceRef: string) => {
+        setExecuting(`${actionType}-${resourceRef}`);
+        setResult(null);
+
+        try {
+            const res = await fetch('/api/actions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    actionType,
+                    resourceRef,
+                    incidentId: incident.id
+                })
+            });
+
+            const data = await res.json();
+
+            if (!res.ok) throw new Error(data.error || 'Action failed');
+
+            setResult({ type: 'success', message: data.message || 'Action executed successfully' });
+        } catch (err: any) {
+            setResult({ type: 'error', message: err.message });
+        } finally {
+            setExecuting(null);
+        }
+    };
+
+    const dockerResources = incident.affectedResources.filter(r => r.startsWith('docker://'));
+
+    if (dockerResources.length === 0) return null;
+
+    return (
+        <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700/50 backdrop-blur-sm shadow-xl">
+            <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                <span>⚡</span> Suggested Actions
+            </h3>
+
+            <div className="space-y-4">
+                {dockerResources.map(ref => (
+                    <div key={ref} className="flex items-center justify-between bg-slate-900/50 p-4 rounded-lg border border-slate-700/30">
+                        <div className="flex items-center gap-3">
+                            <span className="text-2xl">🐳</span>
+                            <div>
+                                <p className="text-slate-200 font-medium">Docker Container</p>
+                                <p className="text-xs text-slate-500 font-mono">{ref.split('docker://')[1].substring(0, 12)}</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => executeAction('restart', ref)}
+                                disabled={!!executing}
+                                className="px-4 py-2 bg-copilot-600/20 hover:bg-copilot-600/40 text-copilot-300 hover:text-white border border-copilot-500/30 rounded-lg transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {executing === `restart-${ref}` ? (
+                                    <span className="animate-spin">↻</span>
+                                ) : (
+                                    <span>↻</span>
+                                )}
+                                Restart
+                            </button>
+                            <button
+                                onClick={() => executeAction('stop', ref)}
+                                disabled={!!executing}
+                                className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-lg transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Stop
+                            </button>
+                        </div>
+                    </div>
+                ))}
+
+                {result && (
+                    <div className={`p-4 rounded-lg border flex items-center gap-3 ${result.type === 'success'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-red-500/10 border-red-500/20 text-red-400'
+                        }`}>
+                        <span>{result.type === 'success' ? '✅' : '❌'}</span>
+                        <span>{result.message}</span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+

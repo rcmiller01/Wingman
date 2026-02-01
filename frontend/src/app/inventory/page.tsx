@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { getApiUrl } from '@/lib/api-config';
 
 interface DockerContainer {
     id: string;
@@ -46,8 +47,7 @@ export default function InventoryPage() {
     useEffect(() => {
         async function fetchInventory() {
             try {
-                const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
-                const res = await fetch(`${apiUrl}/api/inventory`);
+                const res = await fetch(getApiUrl('/api/inventory/status'));
                 const data = await res.json();
                 setInventory(data);
                 setError(null);
