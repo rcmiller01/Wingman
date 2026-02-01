@@ -1,12 +1,10 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { config, hasCloudLLM, hasProxmox } from './config/index.js';
-import { PrismaClient } from '@prisma/client';
-import { inventoryRouter } from './routes/index.js';
+import { prisma } from './db/client.js';
+import { inventoryRouter, logRouter } from './routes/index.js';
 import { startCollector, stopCollector } from './collectors/index.js';
-
-// Initialize Prisma client
-const prisma = new PrismaClient();
+import { LogCollector } from './collectors/log-collector.js';
 
 // Initialize Express app
 const app = express();
@@ -14,6 +12,9 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Initialize Log Collector (starts scheduled job)
+const logCollector = new LogCollector();
 
 // =============================================================================
 // Health Endpoints
@@ -77,6 +78,8 @@ app.get('/api/info', (_req: Request, res: Response) => {
 
 // Mount inventory routes
 app.use('/api/inventory', inventoryRouter);
+// Mount logs routes
+app.use('/api/logs', logRouter);
 
 // =============================================================================
 // Error Handler
@@ -120,6 +123,7 @@ async function main() {
 process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
     stopCollector();
+    // Stop log collector (implicit via process exit, or needs method)
     await prisma.$disconnect();
     process.exit(0);
 });

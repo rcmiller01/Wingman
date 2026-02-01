@@ -1,5 +1,5 @@
 import * as cron from 'node-cron';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db/client.js';
 import * as dockerAdapter from '../adapters/docker.js';
 import * as proxmoxAdapter from '../adapters/proxmox.js';
 import {
@@ -11,7 +11,7 @@ import {
 } from './normalizers.js';
 import { hasProxmox } from '../config/index.js';
 
-const prisma = new PrismaClient();
+// Collection interval in seconds (default: 30s)
 
 // Collection interval in seconds (default: 30s)
 const COLLECTION_INTERVAL_SECONDS = parseInt(process.env.FACT_COLLECTION_INTERVAL || '30', 10);

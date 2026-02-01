@@ -1,4 +1,5 @@
 import Docker from 'dockerode';
+import { Buffer } from 'buffer';
 import { config } from '../config/index.js';
 
 // Types for Docker adapter responses
@@ -134,4 +135,87 @@ export async function isDockerAvailable(): Promise<boolean> {
  */
 export function getResourceRef(containerId: string): string {
     return `docker://${containerId.substring(0, 12)}`;
+}
+
+export interface LogEntry {
+    timestamp: Date;
+    stream: 'stdout' | 'stderr';
+    message: string;
+}
+
+/**
+ * Get logs for a container
+ */
+export async function getContainerLogs(containerId: string, since?: Date): Promise<LogEntry[]> {
+    try {
+        const container = docker.getContainer(containerId);
+
+        const opts: any = {
+            stdout: true,
+            stderr: true,
+            timestamps: true,
+            follow: false,
+        };
+
+        if (since) {
+            opts.since = Math.floor(since.getTime() / 1000);
+        }
+
+        const logsBuffer = await container.logs(opts) as any as Buffer;
+        return parseDockerLogs(logsBuffer);
+    } catch (error) {
+        console.error(`Docker adapter: Failed to get logs for container ${containerId}`, error);
+        throw error;
+    }
+}
+
+/**
+ * Parse Docker multiplexed log stream
+ * Header: [1 byte stream type] [3 bytes 0] [4 bytes size]
+ * Stream types: 0: stdin, 1: stdout, 2: stderr
+ */
+function parseDockerLogs(buffer: Buffer): LogEntry[] {
+    const logs: LogEntry[] = [];
+    let offset = 0;
+
+    // Handle case where it's just a string (rare but possible if TTY enabled)
+    if (!Buffer.isBuffer(buffer)) {
+        // Should check if it's string, but usually types say Buffer. 
+        // If string, likely not multiplexed.
+        return [];
+    }
+
+    while (offset < buffer.length) {
+        // Safe check for header
+        if (offset + 8 > buffer.length) break;
+
+        const type = buffer[offset];
+        const size = buffer.readUInt32BE(offset + 4);
+        offset += 8;
+
+        if (offset + size > buffer.length) break;
+
+        const payload = buffer.subarray(offset, offset + size).toString('utf8');
+        offset += size;
+
+        // Parse timestamp (RFC3339Nano)
+        // Example: 2024-01-01T00:00:00.000000000Z Message content
+        const spaceIdx = payload.indexOf(' ');
+        if (spaceIdx > 0) {
+            const tsString = payload.substring(0, spaceIdx);
+            const message = payload.substring(spaceIdx + 1).trim(); // Remove trailing newline
+
+            const timestamp = new Date(tsString);
+
+            if (!isNaN(timestamp.getTime())) {
+                logs.push({
+                    timestamp,
+                    stream: type === 2 ? 'stderr' : 'stdout',
+                    message,
+                });
+            }
+        }
+    }
+
+    return logs;
 }

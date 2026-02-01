@@ -1,12 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db/client.js';
 import * as dockerAdapter from '../adapters/docker.js';
 import * as proxmoxAdapter from '../adapters/proxmox.js';
 import { hasProxmox } from '../config/index.js';
 import { getCollectorStatus } from '../collectors/fact-collector.js';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 /**
  * GET /api/inventory
@@ -85,6 +84,35 @@ router.get('/docker', async (_req: Request, res: Response) => {
     } catch (error) {
         console.error('Docker inventory error:', error);
         res.status(500).json({ error: 'Failed to fetch Docker inventory' });
+    }
+});
+
+/**
+ * GET /api/inventory/docker/:id
+ * Returns specific Docker container details
+ */
+router.get('/docker/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const available = await dockerAdapter.isDockerAvailable();
+
+        if (!available) {
+            return res.status(503).json({ error: 'Docker service unavailable' });
+        }
+
+        const info = await dockerAdapter.getContainerInfo(id);
+
+        let stats = null;
+        if (info.state === 'running') {
+            try {
+                stats = await dockerAdapter.getContainerStats(id);
+            } catch { /* ignore stats failure */ }
+        }
+
+        res.json({ ...info, stats });
+    } catch (error) {
+        console.error(`Docker container ${req.params.id} error:`, error);
+        res.status(404).json({ error: 'Container not found' });
     }
 });
 
