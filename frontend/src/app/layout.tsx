@@ -25,11 +25,3 @@ export default function RootLayout({
         </html>
     );
 }
-
-{/* Main Content */ }
-<main className="flex-1 p-8">{children}</main>
-                </div >
-            </body >
-        </html >
-    );
-}

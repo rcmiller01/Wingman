@@ -149,6 +149,57 @@ class ProxmoxAdapter:
             print(f"[ProxmoxAdapter] Error getting status for {vmtype}/{vmid}: {e}")
             return None
 
+    async def start_resource(self, node: str, vmtype: str, vmid: int) -> bool:
+        """Start a VM or LXC."""
+        if not self.api:
+            return False
+        
+        try:
+            if vmtype == "qemu":
+                self.api.nodes(node).qemu(vmid).status.start.post()
+            elif vmtype == "lxc":
+                self.api.nodes(node).lxc(vmid).status.start.post()
+            else:
+                return False
+            return True
+        except Exception as e:
+            print(f"[ProxmoxAdapter] Error starting {vmtype}/{vmid}: {e}")
+            return False
+
+    async def stop_resource(self, node: str, vmtype: str, vmid: int) -> bool:
+        """Stop a VM or LXC (shutdown)."""
+        if not self.api:
+            return False
+        
+        try:
+            if vmtype == "qemu":
+                self.api.nodes(node).qemu(vmid).status.shutdown.post()
+            elif vmtype == "lxc":
+                self.api.nodes(node).lxc(vmid).status.shutdown.post()
+            else:
+                return False
+            return True
+        except Exception as e:
+            print(f"[ProxmoxAdapter] Error stopping {vmtype}/{vmid}: {e}")
+            return False
+
+    async def reboot_resource(self, node: str, vmtype: str, vmid: int) -> bool:
+        """Reboot/Restart a VM or LXC."""
+        if not self.api:
+            return False
+        
+        try:
+            if vmtype == "qemu":
+                self.api.nodes(node).qemu(vmid).status.reboot.post()
+            elif vmtype == "lxc":
+                self.api.nodes(node).lxc(vmid).status.reboot.post()
+            else:
+                return False
+            return True
+        except Exception as e:
+            print(f"[ProxmoxAdapter] Error rebooting {vmtype}/{vmid}: {e}")
+            return False
+
 
 # Singleton instance
 proxmox_adapter = ProxmoxAdapter()

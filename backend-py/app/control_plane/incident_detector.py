@@ -7,6 +7,7 @@ from typing import Any
 
 from app.storage.models import Fact, Incident, IncidentNarrative, IncidentSeverity, IncidentStatus
 from app.collectors import log_collector
+from app.notifications.webhook import notifier
 
 
 # Detection thresholds
@@ -170,6 +171,15 @@ class IncidentDetector:
         db.add(narrative)
         
         print(f"[IncidentDetector] Created incident {incident.id}: {summary}")
+        
+        # Trigger notification
+        import asyncio
+        asyncio.create_task(notifier.notify("incident.created", {
+            "incident_id": incident.id,
+            "severity": severity.value,
+            "summary": summary,
+            "affected_resources": affected_resources
+        }))
         
         return incident
 

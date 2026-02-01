@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     proxmox_token_value: str | None = None
     proxmox_verify_ssl: bool = False
     
+    # Notifications (optional)
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

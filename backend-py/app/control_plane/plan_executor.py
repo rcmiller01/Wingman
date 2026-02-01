@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.control_plane.plan_proposal import PlanProposal, PlanStep, PlanStatus, ActionType
 from app.adapters import docker_adapter, proxmox_adapter
 from app.storage.models import ActionHistory
+from app.notifications.webhook import notifier
 
 
 class PlanExecutor:
@@ -39,6 +40,15 @@ class PlanExecutor:
         except Exception as e:
             plan.status = PlanStatus.failed
             plan.error = str(e)
+        
+        # Trigger notification
+        import asyncio
+        asyncio.create_task(notifier.notify("plan.status_changed", {
+            "plan_id": plan.id,
+            "status": plan.status.value,
+            "incident_id": plan.incident_id,
+            "error": plan.error
+        }))
         
         return plan
     
@@ -80,6 +90,12 @@ class PlanExecutor:
                 success = await self._start_container(step)
             elif step.action == ActionType.stop_container:
                 success = await self._stop_container(step)
+            elif step.action in [ActionType.restart_vm, ActionType.restart_lxc]:
+                success = await self._proxmox_action(step, "reboot")
+            elif step.action in [ActionType.start_vm, ActionType.start_lxc]:
+                success = await self._proxmox_action(step, "start")
+            elif step.action in [ActionType.stop_vm, ActionType.stop_lxc]:
+                success = await self._proxmox_action(step, "stop")
             else:
                 step.result = {"message": f"Action {step.action} not implemented"}
                 step.status = "failed"
@@ -131,7 +147,6 @@ class PlanExecutor:
             "success": success,
         }
         return success
-    
     async def _stop_container(self, step: PlanStep) -> bool:
         """Stop a Docker container."""
         container_id = step.target.replace("docker://", "")
@@ -143,6 +158,32 @@ class PlanExecutor:
         
         step.result = {
             "message": f"Container {container_id} stopped" if success else "Stop failed",
+            "success": success,
+        }
+        return success
+
+    async def _proxmox_action(self, step: PlanStep, action_type: str) -> bool:
+        """Perform an action on a Proxmox resource."""
+        # resource_ref format: proxmox://node_name/type/vmid
+        parts = step.target.replace("proxmox://", "").split("/")
+        if len(parts) != 3:
+            step.result = {"error": f"Invalid Proxmox resource ref: {step.target}"}
+            return False
+            
+        node, vmtype, vmid_str = parts
+        vmid = int(vmid_str)
+        
+        if action_type == "start":
+            success = await proxmox_adapter.start_resource(node, vmtype, vmid)
+        elif action_type == "stop":
+            success = await proxmox_adapter.stop_resource(node, vmtype, vmid)
+        elif action_type == "reboot":
+            success = await proxmox_adapter.reboot_resource(node, vmtype, vmid)
+        else:
+            success = False
+            
+        step.result = {
+            "message": f"Proxmox {vmtype} {vmid} on {node}: {action_type} {'succeeded' if success else 'failed'}",
             "success": success,
         }
         return success

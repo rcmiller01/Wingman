@@ -15,6 +15,9 @@ class ActionType(str, Enum):
     restart_vm = "restart_vm"
     start_vm = "start_vm"
     stop_vm = "stop_vm"
+    restart_lxc = "restart_lxc"
+    start_lxc = "start_lxc"
+    stop_lxc = "stop_lxc"
 
 
 class PlanStatus(str, Enum):
