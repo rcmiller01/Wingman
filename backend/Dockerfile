@@ -1,34 +1,25 @@
-FROM node:20-alpine AS base
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install dependencies
+# Install system dependencies (Prisma needs OpenSSL)
+RUN apk add --no-cache openssl
+
+# Install dependencies first (for better caching)
 COPY package*.json ./
 RUN npm ci
 
-# Copy source
-COPY . .
-
-# Generate Prisma client
+# Copy prisma schema and generate client
+COPY prisma ./prisma
 RUN npx prisma generate
 
-# Development stage
-FROM base AS development
-CMD ["npm", "run", "dev"]
+# Copy rest of source
+COPY . .
 
-# Build stage
-FROM base AS builder
+# Build TypeScript
 RUN npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-WORKDIR /app
-
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/prisma ./prisma
 
 EXPOSE 3001
 
+# Start server
 CMD ["npm", "start"]

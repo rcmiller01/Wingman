@@ -23,6 +23,7 @@ const configSchema = z.object({
 
     // Ollama (local model)
     ollamaHost: z.string().url().default('http://localhost:11434'),
+    ollamaApiKey: z.string().optional(),
     ollamaModel: z.string().default('qwen2.5:7b'),
 
     // Proxmox
@@ -45,6 +46,7 @@ function loadConfig(): Config {
         anthropicApiKey: process.env.ANTHROPIC_API_KEY,
         openrouterApiKey: process.env.OPENROUTER_API_KEY,
         ollamaHost: process.env.OLLAMA_HOST,
+        ollamaApiKey: process.env.OLLAMA_API_KEY,
         ollamaModel: process.env.OLLAMA_MODEL,
         proxmoxHost: process.env.PROXMOX_HOST,
         proxmoxUser: process.env.PROXMOX_USER,
