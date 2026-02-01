@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.storage import init_db
-from app.api import health_router, inventory_router, logs_router, facts_router, incidents_router
+from app.api import health_router, inventory_router, logs_router, facts_router, incidents_router, plans_router
 from app.scheduler import start_scheduler, stop_scheduler
 
 
@@ -49,6 +49,7 @@ app.include_router(inventory_router)
 app.include_router(logs_router)
 app.include_router(facts_router)
 app.include_router(incidents_router)
+app.include_router(plans_router)
 
 
 @app.get("/")
