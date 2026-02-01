@@ -172,6 +172,45 @@ export async function getContainerLogs(containerId: string, since?: Date): Promi
 }
 
 /**
+ * Start a container
+ */
+export async function startContainer(containerId: string): Promise<void> {
+    try {
+        const container = docker.getContainer(containerId);
+        await container.start();
+    } catch (error) {
+        console.error(`Docker adapter: Failed to start container ${containerId}`, error);
+        throw error;
+    }
+}
+
+/**
+ * Stop a container
+ */
+export async function stopContainer(containerId: string): Promise<void> {
+    try {
+        const container = docker.getContainer(containerId);
+        await container.stop();
+    } catch (error) {
+        console.error(`Docker adapter: Failed to stop container ${containerId}`, error);
+        throw error;
+    }
+}
+
+/**
+ * Restart a container
+ */
+export async function restartContainer(containerId: string): Promise<void> {
+    try {
+        const container = docker.getContainer(containerId);
+        await container.restart();
+    } catch (error) {
+        console.error(`Docker adapter: Failed to restart container ${containerId}`, error);
+        throw error;
+    }
+}
+
+/**
  * Parse Docker multiplexed log stream
  * Header: [1 byte stream type] [3 bytes 0] [4 bytes size]
  * Stream types: 0: stdin, 1: stdout, 2: stderr

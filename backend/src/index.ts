@@ -2,10 +2,10 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import { config, hasCloudLLM, hasProxmox } from './config/index.js';
 import { prisma } from './db/client.js';
-import { inventoryRouter, logRouter, incidentRouter } from './routes/index.js';
+import { inventoryRouter, logRouter, incidentRouter, actionRouter, memoryRouter, logCompressor } from './routes/index.js';
 import { startCollector, stopCollector } from './collectors/index.js';
-import { LogCollector } from './collectors/log-collector.js';
 import { startDetector, stopDetector } from './detectors/index.js';
+import { qdrantService } from './memory/qdrant-client.js';
 
 // Initialize Express app
 const app = express();
@@ -14,19 +14,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Initialize Log Collector (starts scheduled job)
-const logCollector = new LogCollector();
-
 // =============================================================================
 // Health Endpoints
 // =============================================================================
 
-// Basic health check - always returns ok if server is running
+// Basic health check
 app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok' });
 });
 
-// Readiness check - verifies database and external service connections
+// Readiness check
 app.get('/ready', async (_req: Request, res: Response) => {
     const checks: Record<string, boolean | string> = {
         db: false,
@@ -37,7 +34,6 @@ app.get('/ready', async (_req: Request, res: Response) => {
     };
 
     try {
-        // Check database connection
         await prisma.$queryRaw`SELECT 1`;
         checks.db = true;
     } catch (error) {
@@ -45,7 +41,6 @@ app.get('/ready', async (_req: Request, res: Response) => {
     }
 
     try {
-        // Check Qdrant connection
         const qdrantResponse = await fetch(`${config.qdrantUrl}/collections`);
         checks.qdrant = qdrantResponse.ok;
     } catch (error) {
@@ -68,7 +63,7 @@ app.get('/api/info', (_req: Request, res: Response) => {
     res.json({
         name: 'Homelab Copilot',
         version: '0.1.0',
-        phase: 1,
+        phase: 5,
         capabilities: {
             proxmox: hasProxmox(),
             cloudLlm: hasCloudLLM(),
@@ -77,12 +72,11 @@ app.get('/api/info', (_req: Request, res: Response) => {
     });
 });
 
-// Mount inventory routes
 app.use('/api/inventory', inventoryRouter);
-// Mount logs routes
 app.use('/api/logs', logRouter);
-// Mount incidents routes
 app.use('/api/incidents', incidentRouter);
+app.use('/api/actions', actionRouter);
+app.use('/api/memory', memoryRouter);
 
 // =============================================================================
 // Error Handler
@@ -102,15 +96,13 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 async function main() {
     try {
-        // Test database connection on startup
         await prisma.$connect();
         console.log('✅ Database connected');
 
-        // Start fact collector
         startCollector();
-
-        // Start incident detector
         startDetector();
+        await qdrantService.init();
+        logCompressor.start();
 
         app.listen(config.port, () => {
             console.log(`🚀 Homelab Copilot backend listening on port ${config.port}`);
@@ -130,7 +122,7 @@ process.on('SIGINT', async () => {
     console.log('\n🛑 Shutting down...');
     stopCollector();
     stopDetector();
-    // Stop log collector (implicit via process exit, or needs method)
+    logCompressor.stop();
     await prisma.$disconnect();
     process.exit(0);
 });
@@ -138,9 +130,9 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
     stopCollector();
     stopDetector();
+    logCompressor.stop();
     await prisma.$disconnect();
     process.exit(0);
 });
 
 main();
-
