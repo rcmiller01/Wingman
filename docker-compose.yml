@@ -1,25 +1,25 @@
 services:
+  # Python Backend (Primary)
   backend:
     build:
-      context: ./backend
+      context: ./backend-py
       dockerfile: Dockerfile
     ports:
-      - "3001:3001"
+      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
+      - DATABASE_URL=postgresql+asyncpg://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
       - QDRANT_URL=http://qdrant:6333
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OLLAMA_HOST=${WINGMAN_OLLAMA_HOST:-http://host.docker.internal:11434}
-      - OLLAMA_API_KEY=${OLLAMA_API_KEY}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:7b}
       - PROXMOX_HOST=${PROXMOX_HOST}
       - PROXMOX_USER=${PROXMOX_USER}
       - PROXMOX_TOKEN_NAME=${PROXMOX_TOKEN_NAME}
       - PROXMOX_TOKEN_VALUE=${PROXMOX_TOKEN_VALUE}
       - PROXMOX_VERIFY_SSL=${PROXMOX_VERIFY_SSL:-false}
-      - NODE_ENV=${NODE_ENV:-development}
+      - DEBUG=${DEBUG:-false}
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,6 +31,19 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
+
+  # Legacy Node.js Backend (Deprecated - kept for reference)
+  # backend-legacy:
+  #   build:
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "3002:3001"
+  #   environment:
+  #     - DATABASE_URL=postgresql://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
