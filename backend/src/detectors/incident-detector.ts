@@ -2,6 +2,7 @@ import * as cron from 'node-cron';
 import { prisma } from '../db/client.js';
 import { contextProvider } from '../memory/context-provider.js';
 import { config } from '../config/index.js';
+import { agentOrchestrator } from '../agents/orchestrator.js';
 
 const CHECK_INTERVAL_SECONDS = 60;
 
@@ -120,11 +121,8 @@ export class IncidentDetector {
 
         console.log(`🚨 [IncidentDetector] Generating Incident: ${summary} (${resourceRef})`);
 
-        // Generate AI analysis with RAG
-        const analysis = await this.generateAIAnalysis(summary, detail, resourceRef);
-
         try {
-            await prisma.incident.create({
+            const incident = await prisma.incident.create({
                 data: {
                     severity,
                     status: 'open',
@@ -134,80 +132,20 @@ export class IncidentDetector {
                     narrative: {
                         create: {
                             timeRange: { start: new Date(), end: new Date() },
-                            narrativeText: analysis.narrative,
-                            rootCauseHypothesis: analysis.rootCause,
+                            narrativeText: `## ${summary}\n\n${detail}\n\n*🤖 Autonomous Agents are analyzing this incident...*`,
+                            rootCauseHypothesis: 'Pending Analysis',
                             evidenceRefs: [],
                             resolutionSteps: []
                         }
                     }
                 }
             });
+
+            // Trigger Agent Orchestration asynchronously
+            agentOrchestrator.run(incident.id).catch(err => console.error('Orchestrator failed:', err));
+
         } catch (error) {
             console.error('Failed to create incident record:', error);
-        }
-    }
-
-    /**
-     * Use LLM + RAG to generate a better narrative
-     */
-    private async generateAIAnalysis(summary: string, detail: string, resourceRef: string): Promise<{ narrative: string, rootCause: string }> {
-        try {
-            // 1. Get Context
-            const contextItems = await contextProvider.getContext(`${summary} ${detail}`, 3);
-            const contextStr = contextProvider.formatContext(contextItems);
-
-            // 2. Prompt
-            const prompt = `You are a Site Reliability Engineer (SRE) AI.
-Analyze the following incident and provide a professional Incident Narrative and a Root Cause Hypothesis.
-Use the provided historical context if relevant to identify patterns (e.g., if this container has crashed before).
-
-## Current Incident
-Resource: ${resourceRef}
-Summary: ${summary}
-Detail: ${detail}
-
-## Historical Context (Previous Logs/Memories)
-${contextStr || "No relevant history found."}
-
-## Instructions
-1. Write a clear, markdown-formatted "Narrative" describing what happened. Mention if this is a recurring issue based on context.
-2. Provide a "Root Cause Hypothesis".
-
-Format your response as JSON:
-{
-  "narrative": "markdown string...",
-  "rootCause": "short string..."
-}`;
-
-            // 3. Call Ollama
-            const response = await fetch(`${config.ollamaHost}/api/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: config.ollamaModel, // e.g., qwen2.5:7b
-                    prompt: prompt,
-                    stream: false,
-                    format: 'json' // Enforce JSON output
-                })
-            });
-
-            if (!response.ok) throw new Error(`Ollama failed: ${response.statusText}`);
-
-            const data: any = await response.json();
-            const result = JSON.parse(data.response);
-
-            return {
-                narrative: result.narrative || `## ${summary}\n\n${detail}`,
-                rootCause: result.rootCause || 'Unknown process failure'
-            };
-
-        } catch (error) {
-            console.error('Failed to generate AI analysis, falling back to basic details:', error);
-            // Fallback
-            return {
-                narrative: `## ${summary}\n\n${detail}\n\n*(AI Analysis Unavailable)*`,
-                rootCause: 'Process crash or configuration error (Fallback)'
-            };
         }
     }
 }

@@ -109,6 +109,7 @@ model IncidentNarrative {
   outcome              String?                                // "resolved", "mitigated", "unresolved"
   lessonsLearned       String?  @map("lessons_learned")
   relatedIncidents     Json?    @map("related_incidents")    // Array of incident IDs
+  agentTrace           Json?    @map("agent_trace")          // Multi-agent conversation log
   
   // Full narrative text for RAG indexing
   narrativeText        String   @map("narrative_text")
