@@ -9,7 +9,8 @@ from typing import Any
 
 from homelab.storage import get_db
 from homelab.storage.models import Incident, IncidentNarrative, IncidentStatus, IncidentSeverity
-from homelab.control_plane import incident_detector, narrative_generator
+from homelab.control_plane import incident_detector
+from homelab.rag.narrative_generator import narrative_generator
 from homelab.notifications.router import notification_router
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
@@ -146,20 +147,12 @@ async def analyze_incident(
     if not incident:
         raise HTTPException(404, "Incident not found")
     
-    # Generate narrative
-    narrative_text = await narrative_generator.generate_narrative(db, incident)
-    
-    # Update narrative in DB
-    await narrative_generator.update_incident_narrative(
-        db, 
-        incident_id, 
-        narrative_text,
-    )
-    await db.commit()
+    # Generate narrative (handles DB persistence internaly)
+    narrative = await narrative_generator.generate_narrative(db, incident.id)
     
     return {
         "incident_id": incident_id,
-        "narrative": narrative_text,
+        "narrative": narrative.narrative_text if narrative else None,
     }
 
 

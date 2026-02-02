@@ -53,6 +53,7 @@ class ControlPlane:
     def __init__(self):
         self.current_state = ControlPlaneState.OBSERVE
         self.last_run = None
+        self.last_summarization = None
     
     async def run_loop(self):
         """Execute one full iteration of the control plane loop."""
@@ -99,11 +100,12 @@ class ControlPlane:
                         continue
 
                     proposal = await planner.propose_for_incident(db, incident)
-                    is_schema_valid, schema_errors = validate_plan_proposal(proposal)
                     if not is_schema_valid:
                         print(f"[ControlPlane] Plan rejected by schema validation: {schema_errors}")
                         continue
-                    is_valid, violations = policy_engine.validate(proposal)
+                    
+                    # Policy Limit Check (Now Async)
+                    is_valid, violations = await policy_engine.validate(db, proposal)
                     if not is_valid:
                         print(f"[ControlPlane] Plan rejected by policy: {violations}")
                         continue
@@ -212,26 +214,68 @@ class ControlPlane:
                 # 8. VERIFY
                 await self._transition_to(ControlPlaneState.VERIFY)
                 
+                # Check recent completed plans to see if they resolved the incident
+                # Look for TodoSteps completed in the last 5 minutes
+                five_mins_ago = datetime.utcnow() - timedelta(minutes=5)
+                result = await db.execute(
+                    select(TodoStep)
+                    .where(TodoStep.status == ActionStatus.completed)
+                    .where(TodoStep.completed_at >= five_mins_ago)
+                )
+                recent_steps = result.scalars().all()
+                
+                for step in recent_steps:
+                    if not step.incident_id:
+                        continue
+                        
+                    # Re-collect facts for this target to confirm health
+                    print(f"[ControlPlane] Verifying fix for {step.target_resource}")
+                    try:
+                        # Force fresh collection
+                        # For now, we assume if action completed successfully, we mark incident as 'mitigated'
+                        # In future: check specific facts (e.g. status=running)
+                        
+                        # Find the incident
+                        incident_q = await db.execute(select(Incident).where(Incident.id == step.incident_id))
+                        inc = incident_q.scalar_one_or_none()
+                        
+                        if inc and inc.status == IncidentStatus.open:
+                            print(f"[ControlPlane] Marking incident {inc.id} as MITIGATED following successful action")
+                            inc.status = IncidentStatus.mitigated
+                            db.add(inc)
+                    except Exception as e:
+                        print(f"[ControlPlane] Verification failed: {e}")
+                
                 # 9. RECORD
                 await self._transition_to(ControlPlaneState.RECORD)
                 
                 # A. Summarize expiring logs (Long-term memory)
-                from homelab.rag.log_summarizer import log_summarizer
-                await log_summarizer.summarize_expiring_logs(db, retention_days=90)
+                # Only run every hour to preserve resources
+                should_summarize = False
+                now = datetime.utcnow()
+                if not self.last_summarization or (now - self.last_summarization).total_seconds() > 3600:
+                    should_summarize = True
                 
-                # B. Generate narratives for open incidents with placeholder narratives
+                if should_summarize:
+                    print("[ControlPlane] Running hourly log summarization and analysis...")
+                    from homelab.rag.log_summarizer import log_summarizer
+                    await log_summarizer.summarize_expiring_logs(db, retention_days=90)
                 
-                # Find incidents with placeholder narratives
-                result = await db.execute(
-                    select(Incident)
-                    .join(IncidentNarrative)
-                    .where(IncidentNarrative.narrative_text.contains("Analysis pending..."))
-                )
-                incidents_needing_analysis = result.scalars().all()
-                
-                for incident in incidents_needing_analysis:
-                    print(f"[ControlPlane] Generating analysis for incident {incident.id}")
-                    await narrative_generator.generate_narrative(db, incident.id)
+                    # B. Generate narratives for open incidents with placeholder narratives
+                    
+                    # Find incidents with placeholder narratives
+                    result = await db.execute(
+                        select(Incident)
+                        .join(IncidentNarrative)
+                        .where(IncidentNarrative.narrative_text.contains("Analysis pending..."))
+                    )
+                    incidents_needing_analysis = result.scalars().all()
+                    
+                    for incident in incidents_needing_analysis:
+                        print(f"[ControlPlane] Generating analysis for incident {incident.id}")
+                        await narrative_generator.generate_narrative(db, incident.id)
+                        
+                    self.last_summarization = now
                 
                 await db.commit()
                 

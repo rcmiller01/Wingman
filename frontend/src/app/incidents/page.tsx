@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
+import { getApiUrl } from '@/utils/api';
+
 interface Incident {
     id: string;
     severity: string;
@@ -19,7 +21,7 @@ export default function IncidentsPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('/api/incidents?status=open,investigating,mitigated')
+        fetch(getApiUrl('/incidents?status=open,investigating,mitigated'))
             .then(res => res.json())
             .then(data => {
                 const list = Array.isArray(data) ? data : data.incidents;
@@ -94,8 +96,8 @@ function mapIncidentFromApi(payload: any): Incident {
         detectedAt: payload.detected_at,
         narrative: payload.narrative
             ? {
-                  narrativeText: payload.narrative.narrative_text,
-              }
+                narrativeText: payload.narrative.narrative_text,
+            }
             : undefined,
     };
 }

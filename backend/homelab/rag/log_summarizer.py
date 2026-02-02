@@ -68,14 +68,16 @@ class LogSummarizer:
             await db.commit()
             await db.refresh(summary)
             
-            # 4. Index in Vector Store
-            await vector_store.index_log_summary(
-                summary_id=str(summary.id),
-                text=summary_text,
-                meta={
-                    "resource_ref": resource_ref,
-                    "period_start": start_date.isoformat(),
-                    "period_end": end_date.isoformat(),
+            # 4. Index in Vector Store using unified RAG Indexer
+            await rag_indexer.index_log_summary(
+                resource_ref=resource_ref,
+                summary_text=summary_text,
+                time_range={
+                    "start": start_date.isoformat(),
+                    "end": end_date.isoformat(),
+                },
+                metadata={
+                    "summary_id": str(summary.id),
                     "log_count": count,
                     "retention_date": retention_date.isoformat(),
                 },

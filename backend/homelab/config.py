@@ -90,5 +90,6 @@ def get_settings() -> Settings:
     s = Settings()
     # Mask password for security in logs
     safe_url = s.database_url.split("@")[-1] if "@" in s.database_url else s.database_url
-    print(f"DEBUG: database_url (masked host)={safe_url}")
+    if s.debug:
+        print(f"DEBUG: database_url (masked host)={safe_url}")
     return s

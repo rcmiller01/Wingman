@@ -1,6 +1,6 @@
 """Control plane package."""
 from homelab.control_plane.incident_detector import incident_detector, IncidentDetector
-from homelab.control_plane.narrative_generator import narrative_generator, NarrativeGenerator
+from homelab.rag.narrative_generator import narrative_generator, NarrativeGenerator
 from homelab.control_plane.plan_proposal import PlanProposal, PlanStep, PlanStatus
 from homelab.control_plane.plan_generator import plan_generator, PlanGenerator
 from homelab.control_plane.plan_executor import plan_executor, PlanExecutor

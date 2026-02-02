@@ -8,7 +8,7 @@ from homelab.storage.database import get_db
 from homelab.rag.rag_indexer import rag_indexer
 from homelab.rag.log_summarizer import log_summarizer
 
-router = APIRouter(prefix="/rag", tags=["rag"])
+router = APIRouter(prefix="/api/rag", tags=["rag"])
 
 class SearchRequest(BaseModel):
     query: str
