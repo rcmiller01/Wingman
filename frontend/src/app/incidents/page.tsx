@@ -19,10 +19,11 @@ export default function IncidentsPage() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch('/api/incidents?status=all')
+        fetch('/api/incidents?status=open,investigating,mitigated')
             .then(res => res.json())
             .then(data => {
-                const mapped = (data.incidents || []).map(mapIncidentFromApi);
+                const list = Array.isArray(data) ? data : data.incidents;
+                const mapped = (list || []).map(mapIncidentFromApi);
                 setIncidents(mapped);
                 setLoading(false);
             })

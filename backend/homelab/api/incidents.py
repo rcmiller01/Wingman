@@ -52,12 +52,17 @@ async def list_incidents(
     """List incidents, optionally filtered."""
     query = select(Incident, IncidentNarrative).outerjoin(IncidentNarrative)
 
-    if status and status != "all":
-        try:
-            status_enum = IncidentStatus[status]
-            query = query.where(Incident.status == status_enum)
-        except KeyError:
-            raise HTTPException(400, f"Invalid status: {status}")
+    if status:
+        statuses = [item.strip() for item in status.split(",") if item.strip()]
+        normalized = [item.lower() for item in statuses]
+        if statuses and "all" not in normalized:
+            status_enums = []
+            for value in normalized:
+                try:
+                    status_enums.append(IncidentStatus[value])
+                except KeyError:
+                    raise HTTPException(400, f"Invalid status: {value}")
+            query = query.where(Incident.status.in_(status_enums))
     
     if severity:
         try:
@@ -71,24 +76,21 @@ async def list_incidents(
     result = await db.execute(query)
     incidents = list(result.all())
     
-    return {
-        "count": len(incidents),
-        "incidents": [
-            {
-                "id": str(incident.id),
-                "severity": incident.severity.value,
-                "status": incident.status.value,
-                "affected_resources": incident.affected_resources,
-                "symptoms": incident.symptoms,
-                "detected_at": incident.detected_at,
-                "resolved_at": incident.resolved_at,
-                "narrative": {
-                    "narrative_text": narrative.narrative_text,
-                } if narrative else None,
-            }
-            for incident, narrative in incidents
-        ],
-    }
+    return [
+        {
+            "id": str(incident.id),
+            "severity": incident.severity.value,
+            "status": incident.status.value,
+            "affected_resources": incident.affected_resources,
+            "symptoms": incident.symptoms,
+            "detected_at": incident.detected_at,
+            "resolved_at": incident.resolved_at,
+            "narrative": {
+                "narrative_text": narrative.narrative_text,
+            } if narrative else None,
+        }
+        for incident, narrative in incidents
+    ]
 
 
 @router.get("/{incident_id}")
