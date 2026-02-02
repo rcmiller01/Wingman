@@ -144,12 +144,18 @@ class IncidentDetector:
         resource_ref: str
     ) -> Incident | None:
         """Check if there's already an open incident for this resource."""
+        # Fetch all open/investigating incidents first
         result = await db.execute(
             select(Incident)
             .where(Incident.status.in_([IncidentStatus.open, IncidentStatus.investigating]))
-            .where(Incident.affected_resources.contains([resource_ref]))
         )
-        return result.scalars().first()
+        incidents = result.scalars().all()
+        
+        # Filter in Python because 'json' type doesn't support containment operators well
+        for incident in incidents:
+            if resource_ref in incident.affected_resources:
+                return incident
+        return None
     
     async def _create_incident(
         self,

@@ -40,22 +40,27 @@ class ControlPlane:
     async def run_loop(self):
         """Execute one full iteration of the control plane loop."""
         start_time = time.time()
-        logger.info("=== Starting Control Plane Loop ===")
+        print("=== Starting Control Plane Loop ===")
         
         async with async_session_maker() as db:
             try:
                 # 1. OBSERVE
                 await self._transition_to(ControlPlaneState.OBSERVE)
                 # In Phase 1: Call collectors purely for observation
-                await fact_collector.collect_all(db)
-                await log_collector.collect_all_container_logs(db, since_minutes=2)
+                fact_counts = await fact_collector.collect_all(db)
+                print(f"[ControlPlane] Collected facts: {fact_counts}")
+                
+                log_counts = await log_collector.collect_all_container_logs(db, since_minutes=10)
+                total_logs = sum(log_counts.values())
+                if total_logs > 0:
+                    print(f"[ControlPlane] Collected {total_logs} new logs")
                 
                 # 2. ASSESS
                 await self._transition_to(ControlPlaneState.ASSESS)
                 # In Phase 1: Detect incidents
                 new_incidents = await incident_detector.detect_all(db)
                 if new_incidents:
-                    logger.info(f"Detected {len(new_incidents)} new incidents")
+                    print(f"[ControlPlane] Detected {len(new_incidents)} new incidents")
                 
                 # 3. PLAN
                 await self._transition_to(ControlPlaneState.PLAN)
@@ -82,19 +87,19 @@ class ControlPlane:
                 await db.commit()
                 
             except Exception as e:
-                logger.error(f"Error in Control Plane Loop: {e}", exc_info=True)
+                print(f"[ControlPlane] Error in Loop: {e}")
+                import traceback
+                traceback.print_exc()
                 await db.rollback()
             finally:
                 duration = time.time() - start_time
                 self.last_run = datetime.utcnow()
-                logger.info(f"=== Control Plane Loop Completed in {duration:.2f}s ===\n")
+                print(f"=== Control Plane Loop Completed in {duration:.2f}s ===\n")
 
     async def _transition_to(self, new_state: ControlPlaneState):
         """Log state transition."""
-        logger.info(f"[State Transition] {self.current_state} -> {new_state}")
+        # print(f"[State Transition] {self.current_state} -> {new_state}")
         self.current_state = new_state
-        # Simulate minor checking delay
-        # await asyncio.sleep(0.01)
 
 # Singleton instance
 control_plane = ControlPlane()
