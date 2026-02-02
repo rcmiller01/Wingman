@@ -1,9 +1,9 @@
 
 import asyncio
-from homelab.rag.vector_store import vector_store
+from homelab.rag.rag_indexer import rag_indexer
 
 async def verify_rag():
-    print("[Verify] Testing Vector Store...")
+    print("[Verify] Testing RAG Indexer...")
     
     # 1. Test Embedding & Indexing
     import uuid
@@ -11,20 +11,18 @@ async def verify_rag():
     test_text = "The quick brown fox jumps over the lazy dog."
     
     print(f"[Verify] Indexing: '{test_text}'")
-    await vector_store.index_narrative(
+    await rag_indexer.index_narrative(
         narrative_id=test_id,
-        text=test_text,
-        meta={"source": "verification_script"}
+        narrative_text=test_text,
+        incident_id="verification",
+        metadata={"source": "verification_script"},
     )
     
     # 2. Test Search
     query = "brown fox"
     print(f"[Verify] Searching for: '{query}'")
     
-    # DEBUG: Inspect client
-    print(f"[Verify] Client methods: {dir(vector_store.client)}")
-    
-    results = await vector_store.search_similar(query, limit=1)
+    results = await rag_indexer.search_narratives(query, limit=1)
     
     if results:
         print("[Verify] Search Result:")

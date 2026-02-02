@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from homelab.storage.models import LogEntry, LogSummary
-from homelab.rag.vector_store import vector_store
+from homelab.rag.rag_indexer import rag_indexer
 from homelab.notifications.router import notification_router
 
 class LogSummarizer:
@@ -67,13 +67,16 @@ class LogSummarizer:
             await db.refresh(summary)
             
             # 4. Index in Vector Store
-            await vector_store.index_log_summary(
-                summary_id=str(summary.id),
-                text=summary_text,
-                meta={
-                    "resource": resource_ref,
-                    "start": str(start_date),
-                    "end": str(end_date),
+            await rag_indexer.index_log_summary(
+                resource_ref=resource_ref,
+                summary_text=summary_text,
+                time_range={
+                    "start": start_date.isoformat(),
+                    "end": end_date.isoformat(),
+                },
+                metadata={
+                    "summary_id": str(summary.id),
+                    "log_count": count,
                 },
             )
 
