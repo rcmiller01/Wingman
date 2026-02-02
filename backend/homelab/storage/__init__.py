@@ -3,7 +3,7 @@ from homelab.storage.database import Base, get_db, init_db, engine
 from homelab.storage.models import (
     Fact,
     LogEntry,
-    LogSummaryDocument,
+    LogSummary,
     Incident,
     IncidentNarrative,
     ActionHistory,
@@ -21,7 +21,7 @@ __all__ = [
     "engine",
     "Fact",
     "LogEntry",
-    "LogSummaryDocument",
+    "LogSummary",
     "Incident",
     "IncidentNarrative",
     "ActionHistory",

@@ -146,7 +146,12 @@ class ControlPlane:
                 
                 # 9. RECORD
                 await self._transition_to(ControlPlaneState.RECORD)
-                # NEW: Generate narratives for open incidents with placeholder narratives
+                
+                # A. Summarize expiring logs (Long-term memory)
+                from homelab.rag.log_summarizer import log_summarizer
+                await log_summarizer.summarize_expiring_logs(db, retention_days=90)
+                
+                # B. Generate narratives for open incidents with placeholder narratives
                 
                 # Find incidents with placeholder narratives
                 result = await db.execute(

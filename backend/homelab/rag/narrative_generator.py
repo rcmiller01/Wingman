@@ -51,13 +51,22 @@ class NarrativeGenerator:
             )
             logs.extend(log_result.scalars().all())
             
-        # 4. Construct Prompt
-        prompt = self._construct_prompt(incident, facts, logs)
+        # 4. RAG: Search for similar past incidents
+        from homelab.rag.vector_store import vector_store
         
-        # 5. Call LLM
+        search_query = f"Incident on {', '.join(incident.affected_resources)}: {', '.join(incident.symptoms)}"
+        if vector_store:
+             similar_docs = await vector_store.search_similar(search_query, limit=2)
+        else:
+             similar_docs = []
+        
+        # 5. Construct Prompt
+        prompt = self._construct_prompt(incident, facts, logs, similar_docs)
+        
+        # 6. Call LLM
         narrative_text = await self._call_ollama(prompt)
         
-        # 6. Create/Update IncidentNarrative
+        # 7. Create/Update IncidentNarrative
         # Check if narrative already exists
         narrative_result = await db.execute(select(IncidentNarrative).where(IncidentNarrative.incident_id == incident_id))
         narrative = narrative_result.scalar_one_or_none()
@@ -74,15 +83,37 @@ class NarrativeGenerator:
                 resolution_steps=[],
             )
             db.add(narrative)
+            await db.commit()
+            await db.refresh(narrative) # Re-fetch to guarantee ID for indexing
+
+        # 8. Index Narrative
+        if vector_store:
+            await vector_store.index_narrative(
+                narrative_id=str(narrative.id),
+                text=narrative_text,
+                meta={
+                    "incident_id": str(incident.id),
+                    "severity": incident.severity.value,
+                    "symptoms": incident.symptoms
+                }
+            )
             
         return narrative
 
-    def _construct_prompt(self, incident: Incident, facts: list[Fact], logs: list[LogEntry]) -> str:
+    def _construct_prompt(self, incident: Incident, facts: list[Fact], logs: list[LogEntry], similar_docs: list = None) -> str:
         """Construct the prompt for the LLM."""
         
         fact_str = "\n".join([f"- [{f.timestamp}] {f.fact_type}: {f.value}" for f in facts])
         log_str = "\n".join([f"- [{l.timestamp}] {l.log_source}: {l.content[:200]}" for l in logs])
         symptom_str = "\n".join([f"- {s}" for s in incident.symptoms])
+        
+        rag_context = ""
+        if similar_docs:
+            rag_context = "**Similar Past Incidents:**\n"
+            for doc in similar_docs:
+                payload = doc.get("payload", {})
+                rag_context += f"- [Score {doc['score']:.2f}] {payload.get('text', '')[:200]}...\n"
+            rag_context += "\n"
         
         return f"""
 You are an expert Site Reliability Engineer (SRE). Analyze the following incident and write a concise, technical narrative.
@@ -101,11 +132,13 @@ You are an expert Site Reliability Engineer (SRE). Analyze the following inciden
 **Recent Logs:**
 {log_str}
 
+{rag_context}
 **Instructions:**
 1. Summarize what is happening.
 2. Identify potential root causes based on the logs and facts.
 3. Suggest 2-3 specific troubleshooting steps.
-4. Format output in Markdown.
+4. If similar incidents are provided, check if the current issue follows a pattern.
+5. Format output in Markdown.
 
 **Narrative:**
 """

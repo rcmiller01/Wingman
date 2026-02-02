@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum as PyEnum
 from uuid import uuid4
-from sqlalchemy import String, Text, DateTime, Float, Boolean, JSON, ForeignKey, Enum, Index
+from sqlalchemy import String, Text, DateTime, Float, Boolean, JSON, ForeignKey, Enum, Index, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from homelab.storage.database import Base
@@ -87,16 +87,16 @@ class LogEntry(Base):
     )
 
 
-class LogSummaryDocument(Base):
+class LogSummary(Base):
     """Compressed log summaries for RAG (12-month retention)."""
-    __tablename__ = "log_summary_documents"
+    __tablename__ = "log_summaries"
     
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
     resource_ref: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    summary_text: Mapped[str] = mapped_column(Text, nullable=False) # Renamed from summary to summary_text to match
     period_start: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     period_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    summary: Mapped[str] = mapped_column(Text, nullable=False)
-    error_patterns: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    log_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0) # Added log_count
     retention_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)  # 12 months from creation
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 

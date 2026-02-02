@@ -1,122 +1,39 @@
-"""RAG API endpoints."""
+"""RAG API endpoints for debugging and manual control."""
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
-from datetime import datetime
 
-from homelab.storage import get_db
-from homelab.rag import rag_indexer, summary_generator
+from homelab.storage.database import get_db
+from homelab.rag.vector_store import vector_store
+from homelab.rag.log_summarizer import log_summarizer
 
-router = APIRouter(prefix="/api/rag", tags=["rag"])
-
+router = APIRouter(prefix="/rag", tags=["rag"])
 
 class SearchRequest(BaseModel):
-    """Search request model."""
     query: str
     limit: int = 5
 
+class SummarizeRequest(BaseModel):
+    retention_days: int = 90
 
-class SummaryRequest(BaseModel):
-    """Summary generation request."""
-    resource_ref: str
-    date: str  # YYYY-MM-DD format
-
-
-@router.post("/search/narratives")
-async def search_narratives(request: SearchRequest):
-    """Search incident narratives for similar content."""
-    results = await rag_indexer.search_narratives(
-        query=request.query,
-        limit=request.limit,
-    )
-    
-    return {
-        "query": request.query,
-        "count": len(results),
-        "results": results,
-    }
-
-
-@router.post("/search/summaries")
-async def search_summaries(request: SearchRequest):
-    """Search log summaries for similar content."""
-    results = await rag_indexer.search_summaries(
-        query=request.query,
-        limit=request.limit,
-    )
-    
-    return {
-        "query": request.query,
-        "count": len(results),
-        "results": results,
-    }
-
-
-@router.post("/generate/summary")
-async def generate_summary(
-    request: SummaryRequest,
-    db: AsyncSession = Depends(get_db),
-):
-    """Generate a log summary for a specific resource and date."""
+@router.post("/search")
+async def search_rag(request: SearchRequest):
+    """Search vector store for similar content."""
     try:
-        date = datetime.strptime(request.date, "%Y-%m-%d")
-    except ValueError:
-        return {"error": "Invalid date format. Use YYYY-MM-DD"}
-    
-    summary = await summary_generator.generate_daily_summary(
-        db,
-        resource_ref=request.resource_ref,
-        date=date,
-    )
-    
-    if not summary:
-        return {
-            "resource_ref": request.resource_ref,
-            "date": request.date,
-            "summary": None,
-            "message": "No logs found for this date",
-        }
-    
-    return {
-        "resource_ref": request.resource_ref,
-        "date": request.date,
-        "summary": summary,
-    }
+        results = await vector_store.search_similar(request.query, limit=request.limit)
+        return {"query": request.query, "results": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/context")
-async def get_context_for_query(
-    query: str = Query(..., min_length=3),
-    limit: int = Query(5, le=20),
+@router.post("/summarize_logs")
+async def trigger_log_summarization(
+    request: SummarizeRequest,
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get relevant context for a query (for LLM prompts)."""
-    # Search both collections
-    narratives = await rag_indexer.search_narratives(query, limit=limit)
-    summaries = await rag_indexer.search_summaries(query, limit=limit)
-    
-    # Combine and sort by score
-    all_results = []
-    for n in narratives:
-        all_results.append({
-            "type": "narrative",
-            "score": n["score"],
-            "text": n["text"],
-            "incident_id": n.get("incident_id"),
-        })
-    for s in summaries:
-        all_results.append({
-            "type": "summary",
-            "score": s["score"],
-            "text": s["text"],
-            "resource_ref": s.get("resource_ref"),
-        })
-    
-    # Sort by score descending
-    all_results.sort(key=lambda x: x["score"], reverse=True)
-    
-    return {
-        "query": query,
-        "count": len(all_results),
-        "context": all_results[:limit],
-    }
+    """Manually trigger log summarization for expiring logs."""
+    try:
+        count = await log_summarizer.summarize_expiring_logs(db, retention_days=request.retention_days)
+        return {"message": "Summarization complete", "summarized_logs_count": count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
