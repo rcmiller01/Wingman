@@ -28,6 +28,27 @@ Homelab Copilot is a privacy-forward infrastructure copilot for homelabs that:
 
 ---
 
+## ARCHITECTURE SWITCH NOTICE (MANDATORY)
+
+This document supersedes any prior plans that used Node/Express/Prisma or other stacks. **All implementation must follow the Python 3.12 + FastAPI control-plane-first architecture described below.** If you see conflicting instructions elsewhere, **ignore them** and adhere to this document.
+
+### Hard Reset IDE Prompt
+Use the following directive verbatim when starting work in an IDE or agent:
+
+> Discard any previous Node/Prisma/Express backend plan. Start a new backend implementation in **Python 3.12** using **FastAPI**, following the **Control Plane First Rule** and the architecture in this document.
+
+### Control Plane First Rule
+The Control Plane is the core of the system and must be implemented **before** any UI, external integrations, or execution adapters. The Control Plane owns: situation building, plan proposal/validation, policy enforcement, todo generation, execution routing, verification, and audit/memory recording.
+
+#### Forbidden shortcuts
+- **Do not** implement a backend in Node/Express/Prisma or port any previous Node design.
+- **Do not** build UI flows or dashboards before the Control Plane is functional.
+- **Do not** bypass plan validation, policy checks, or approval gates to “speed up” execution.
+- **Do not** allow plugins or integrations to execute actions directly.
+- **Do not** send raw logs to cloud LLMs under any circumstances.
+
+---
+
 ## 2) Core Architecture (Locked)
 
 ### Layers
