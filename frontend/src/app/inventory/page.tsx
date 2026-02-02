@@ -47,7 +47,7 @@ export default function InventoryPage() {
     useEffect(() => {
         async function fetchInventory() {
             try {
-                const res = await fetch(getApiUrl('/api/inventory/status'));
+                const res = await fetch(getApiUrl('/api/inventory/all'));
                 const data = await res.json();
                 setInventory(data);
                 setError(null);
@@ -63,7 +63,8 @@ export default function InventoryPage() {
         return () => clearInterval(interval);
     }, []);
 
-    const getStatusColor = (state: string) => {
+    const getStatusColor = (state: string | undefined) => {
+        if (!state) return 'bg-slate-600';
         switch (state.toLowerCase()) {
             case 'running':
             case 'online':
@@ -78,10 +79,11 @@ export default function InventoryPage() {
         }
     };
 
-    const getStatusBadge = (state: string) => {
+    const getStatusBadge = (state: string | undefined) => {
         const color = getStatusColor(state);
+        const s = state || 'Unknown';
         return (
-            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${state.toLowerCase() === 'running' || state.toLowerCase() === 'online'
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.toLowerCase() === 'running' || s.toLowerCase() === 'online'
                 ? 'bg-emerald-500/20 text-emerald-400'
                 : 'bg-slate-600/50 text-slate-300'
                 }`}>

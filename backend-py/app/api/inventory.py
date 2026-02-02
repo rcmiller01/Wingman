@@ -2,21 +2,17 @@
 
 from fastapi import APIRouter
 from app.adapters import docker_adapter, proxmox_adapter
+from app.config import get_settings
+from app.scheduler import scheduler
 
 router = APIRouter(prefix="/api/inventory", tags=["inventory"])
+settings = get_settings()
 
 
 @router.get("/status")
 async def get_inventory_status():
-    """Get adapter connection status."""
-    return {
-        "docker": {
-            "connected": docker_adapter.is_connected,
-        },
-        "proxmox": {
-            "connected": proxmox_adapter.is_connected,
-        },
-    }
+    """Get adapter connection status (legacy for frontend compatibility)."""
+    return await get_full_inventory()
 
 
 @router.get("/containers")
@@ -70,7 +66,10 @@ async def list_lxcs():
 
 @router.get("/all")
 async def get_full_inventory():
-    """Get complete infrastructure inventory."""
+    """Get complete infrastructure inventory in frontend format."""
+    if not proxmox_adapter.is_connected:
+        await proxmox_adapter._check_connection()
+        
     containers = await docker_adapter.list_containers(all=True)
     nodes = await proxmox_adapter.list_nodes()
     vms = await proxmox_adapter.list_vms()
@@ -78,23 +77,17 @@ async def get_full_inventory():
     
     return {
         "docker": {
-            "connected": docker_adapter.is_connected,
-            "count": len(containers),
+            "available": docker_adapter.is_connected,
             "containers": containers,
         },
         "proxmox": {
-            "connected": proxmox_adapter.is_connected,
-            "nodes": {
-                "count": len(nodes),
-                "items": nodes,
-            },
-            "vms": {
-                "count": len(vms),
-                "items": vms,
-            },
-            "lxcs": {
-                "count": len(lxcs),
-                "items": lxcs,
-            },
+            "available": proxmox_adapter.is_connected,
+            "configured": bool(settings.proxmox_host and settings.proxmox_user),
+            "nodes": [{"node": n["name"], "status": n["status"]} for n in nodes],
+            "vms": vms + lxcs,
         },
+        "collector": {
+            "running": scheduler.running,
+            "intervalSeconds": 60,
+        }
     }

@@ -12,25 +12,70 @@ class ProxmoxAdapter:
     def __init__(self):
         self._connected = False
         self.api = None
+        self._last_error = None
         
         if settings.proxmox_host and settings.proxmox_user:
+            # Parse host and port
+            host = settings.proxmox_host.replace("https://", "").replace("http://", "").split(":")[0]
+            port = 8006
+            if ":" in settings.proxmox_host.replace("https://", "").replace("http://", ""):
+                try:
+                    port = int(settings.proxmox_host.replace("https://", "").replace("http://", "").split(":")[-1])
+                except:
+                    pass
+            
+            print(f"[ProxmoxAdapter] Initializing connection to {host}:{port} as {settings.proxmox_user}")
+            
             try:
                 from proxmoxer import ProxmoxAPI
-                self.api = ProxmoxAPI(
-                    settings.proxmox_host,
-                    user=settings.proxmox_user,
-                    token_name=settings.proxmox_token_name,
-                    token_value=settings.proxmox_token_value,
-                    verify_ssl=settings.proxmox_verify_ssl,
-                )
-                self._connected = True
-                print("[ProxmoxAdapter] Connected successfully")
+                
+                if settings.proxmox_token_name and settings.proxmox_token_value:
+                    self.api = ProxmoxAPI(
+                        host,
+                        port=port,
+                        user=settings.proxmox_user,
+                        token_name=settings.proxmox_token_name,
+                        token_value=settings.proxmox_token_value,
+                        verify_ssl=settings.proxmox_verify_ssl,
+                        timeout=10
+                    )
+                    # Try to verify connection immediately
+                    try:
+                        self.api.nodes.get()
+                        self._connected = True
+                        print("[ProxmoxAdapter] Connected to Proxmox successfully")
+                    except Exception as e:
+                        self._last_error = str(e)
+                        print(f"[ProxmoxAdapter] Connection verification failed: {e}")
+                else:
+                    self._last_error = "Missing token name or value"
+                    print(f"[ProxmoxAdapter] {self._last_error}")
             except Exception as e:
-                print(f"[ProxmoxAdapter] Failed to connect: {e}")
-    
+                self._last_error = str(e)
+                print(f"[ProxmoxAdapter] Initialization failed: {e}")
+
     @property
     def is_connected(self) -> bool:
+        # For simplicity in this MVP, we return True if we've ever successfully listed nodes
+        # In a real app, we might want periodic health checks
         return self._connected
+    
+    async def _check_connection(self) -> bool:
+        """Verify the connection by attempting to list nodes."""
+        if not self.api:
+            return False
+            
+        try:
+            # Simple API call to verify credentials
+            self.api.nodes.get()
+            self._connected = True
+            self._last_error = None
+            return True
+        except Exception as e:
+            self._connected = False
+            self._last_error = str(e)
+            print(f"[ProxmoxAdapter] Connection verification failed: {e}")
+            return False
     
     async def list_nodes(self) -> list[dict[str, Any]]:
         """List all Proxmox nodes."""

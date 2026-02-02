@@ -143,6 +143,7 @@ class DockerAdapter:
             "short_id": container.short_id,
             "name": container.name,
             "status": container.status,
+            "state": container.status,
             "image": container.image.tags[0] if container.image.tags else str(container.image.id)[:12],
             "created": attrs.get("Created"),
             "started_at": state.get("StartedAt"),
