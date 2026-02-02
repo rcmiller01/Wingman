@@ -506,3 +506,100 @@ Deliverables:
 - Guide Mode control plane
 
 Stop when the MVP checklist is satisfied.
+
+---
+
+## 17) Final Sprint Implementation Plan (Phase‑1 alignment)
+
+This sprint plan aligns strictly to Phase 1 (Observability MVP, read-only). It is intentionally constrained and additive to the existing plan below.
+
+### Task 1 — Proxmox adapter (inventory + status)
+**Build steps:**
+- Add a Proxmox client wrapper that lists nodes and enumerates VMs/LXCs.
+- Normalize status + basic metrics into a stable resource format.
+- Provide a read-only API endpoint to fetch Proxmox inventory.
+**Guardrails:**
+- Read-only access; no mutating Proxmox actions.
+- No credential persistence beyond existing config handling.
+**Completion criteria:**
+- API returns nodes and VMs/LXCs with status and basic metrics.
+
+### Task 2 — Docker adapter (inventory + status)
+**Build steps:**
+- Add a Docker client wrapper to list containers and state.
+- Normalize container status, restart counts, and resource usage.
+- Provide a read-only API endpoint for container inventory.
+**Guardrails:**
+- Read-only usage of Docker APIs.
+- No exec, no stop/start/restart endpoints in this phase.
+**Completion criteria:**
+- API returns container inventory with status + restart counts.
+
+### Task 3 — Fact collector pipeline (adapters → collectors → normalizers)
+**Build steps:**
+- Implement a minimal collector pipeline that pulls adapter data on schedule.
+- Normalize adapter outputs into fact records with timestamps and sources.
+- Store facts in the fact store with a consistent schema.
+**Guardrails:**
+- Facts are derived only from adapter outputs.
+- No cloud model calls or raw log ingestion in this phase.
+**Completion criteria:**
+- Facts are generated and stored for both Proxmox and Docker sources.
+
+### Task 4 — Fact store query surface
+**Build steps:**
+- Add repository/service methods to query recent facts (last N hours).
+- Implement API endpoints for fact queries needed by the dashboard.
+- Ensure filtering by source and resource type is supported.
+**Guardrails:**
+- Query-only endpoints; no fact mutation via API.
+- Keep schema and queries minimal for Phase‑1 usage only.
+**Completion criteria:**
+- API can return recent facts filtered by source/resource.
+
+### Task 5 — Health summary aggregation
+**Build steps:**
+- Create a summary service that rolls up resource health from facts.
+- Define a simple health model (healthy/degraded/down).
+- Expose a read-only API endpoint for the health summary.
+**Guardrails:**
+- Derived solely from existing facts, no external calls.
+- No alerting or incident creation in Phase‑1.
+**Completion criteria:**
+- Dashboard API returns a current health summary.
+
+### Task 6 — Frontend inventory view
+**Build steps:**
+- Add inventory UI views for Proxmox nodes/VMs/LXCs and containers.
+- Wire the UI to the inventory endpoints.
+- Provide empty/loading/error states for read-only views.
+**Guardrails:**
+- UI is read-only; no action controls.
+- Keep UI minimal: list and status only.
+**Completion criteria:**
+- Dashboard shows Proxmox and container inventory lists.
+
+### Task 7 — Frontend health summary view
+**Build steps:**
+- Add a top-level health summary widget/section.
+- Wire to the health summary endpoint.
+- Include simple status indicators only.
+**Guardrails:**
+- No incident narrative UI, no log views in Phase‑1.
+**Completion criteria:**
+- Dashboard shows a live health summary indicator.
+
+### Task 8 — Integration + validation
+**Build steps:**
+- Wire scheduler to run collectors and populate facts.
+- Validate the end-to-end flow (adapters → facts → API → UI).
+- Ensure basic error handling/logging for adapter failures.
+**Guardrails:**
+- Keep validation minimal; no additional features or refactors.
+- Maintain read-only posture across the stack.
+**Completion criteria:**
+- End-to-end inventory + health summary work in the UI from live adapters.
+
+### Sprint stop conditions
+- **Implement only tasks listed** in this section; defer anything else.
+- **Stop when complete** once all Task 1–8 completion criteria are met.
