@@ -6,20 +6,37 @@
 
 ## Overview
 
-Homelab Copilot observes your Proxmox + Docker infrastructure, explains incidents using a narrative layer, and guides remediation via a policy-enforced control plane—all while keeping your raw logs private.
+Homelab Copilot is a privacy-forward infrastructure copilot for homelabs. It observes Proxmox and container infrastructure, synthesizes incident narratives, and proposes remediation steps via a policy-enforced control plane—while keeping raw logs private.
 
 ### Key Principles
 
-- **Cloud-first reasoning** via user API keys; **local fallback** for classification/summarization
+- **Cloud-first reasoning** via user API keys; **local fallback** for always-on classification/summarization
 - **No raw logs sent to cloud models** — only distilled summaries and RAG context
-- **No autonomous destructive actions** — Guide mode only (user approves every step)
+- **No autonomous destructive actions** — Guide/Assist modes require user approval
+
+### Architecture at a Glance
+
+1. **Intelligence Layer**
+   - Cloud LLMs (OpenAI/Anthropic/OpenRouter) used on-demand.
+   - Local LLM (Ollama) always on for classification/summarization/tool selection.
+2. **Control Plane (Core)**
+   - Builds Situations from facts/logs.
+   - Proposes and validates plans.
+   - Enforces Guide/Assist policies.
+   - Generates todo steps and records audit/memory artifacts.
+3. **Execution Layer**
+   - Adapters for Proxmox, Docker/Podman, and planned automations.
+4. **Persistent Stores**
+   - PostgreSQL for facts, actions, incidents, and policy state.
+   - Qdrant for RAG indexing (incident narratives and log summaries).
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- Node.js 20+ (for local development)
+- Node.js 20+ (frontend development)
+- Python 3.12+ (backend development)
 - Ollama with a local model (e.g., `ollama pull qwen2.5:7b`)
 
 ### Setup
@@ -39,36 +56,43 @@ Homelab Copilot observes your Proxmox + Docker infrastructure, explains incident
 
 3. **Access the dashboard:**
    - Frontend: http://localhost:3000
-   - Backend API: http://localhost:3001
-   - Qdrant Dashboard: http://localhost:6333/dashboard
+   - Backend API: http://localhost:8000
+   - Qdrant Dashboard: http://localhost:6343/dashboard
 
 ### Development
 
 ```bash
-# Install dependencies
+# Install frontend dependencies
 npm install
 
-# Run backend + frontend in dev mode
-npm run dev
+# Start the frontend (Next.js)
+npm run dev:frontend
 
-# Run backend tests
-npm run test -w backend
+# Start the backend locally
+cd backend
+pip install -r requirements.txt
+uvicorn homelab.main:app --reload --port 8000
+```
 
-# Database migrations
-cd backend && npx prisma migrate dev
+```bash
+# Initialize database tables (first run)
+cd backend
+python create_tables.py
 ```
 
 ## Project Structure
 
 ```
 Wingman/
-├── backend/           # Node.js/Express API
-│   ├── prisma/        # Database schema & migrations
-│   └── src/           # Application source
+├── backend/           # Python/FastAPI control plane
+│   ├── homelab/       # Application source
+│   ├── alembic/       # Database migrations
+│   └── create_tables.py
 ├── frontend/          # Next.js dashboard
 │   └── src/app/       # App router pages
 ├── infra/             # Infrastructure configs
 │   └── setup.sh       # Interactive setup wizard
+├── docs/              # Observability + alerting docs
 ├── docker-compose.yml # Service orchestration
 └── .env.example       # Environment template
 ```
