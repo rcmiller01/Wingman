@@ -2,7 +2,7 @@ services:
   # Python Backend (Primary)
   backend:
     build:
-      context: ./backend-py
+      context: ./backend
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
@@ -27,7 +27,7 @@ services:
         condition: service_started
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./backend-py/app:/app/app
+      - ./backend/app:/app/app
       - ./knowledge:/app/knowledge
     extra_hosts:
       - "host.docker.internal:host-gateway"

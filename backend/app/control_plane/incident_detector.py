@@ -34,45 +34,55 @@ class IncidentDetector:
         return detected
     
     async def _detect_restart_loops(self, db: AsyncSession) -> list[dict[str, Any]]:
-        """Detect containers with excessive restarts."""
-        # Get recent restart_loop_detected facts
+        """Detect containers with excessive restarts using raw status facts."""
         since = datetime.utcnow() - timedelta(hours=1)
         
+        # Get recent container_status facts
         result = await db.execute(
             select(Fact)
-            .where(Fact.fact_type == "restart_loop_detected")
+            .where(Fact.fact_type == "container_status")
             .where(Fact.timestamp >= since)
+            .order_by(Fact.timestamp.desc())
         )
         facts = list(result.scalars().all())
         
-        incidents = []
+        # Group by resource_ref to find the latest state
+        latest_status = {}
         for fact in facts:
-            # Check if incident already exists for this resource
-            existing = await self._get_open_incident(db, fact.resource_ref)
-            if existing:
-                continue  # Already tracking this
-            
+            if fact.resource_ref not in latest_status:
+                latest_status[fact.resource_ref] = fact
+        
+        incidents = []
+        for resource_ref, fact in latest_status.items():
             restart_count = fact.value.get("restart_count", 0)
-            container_name = fact.value.get("container_name", "unknown")
             
-            # Create incident
-            incident = await self._create_incident(
-                db,
-                severity=IncidentSeverity.high if restart_count > 5 else IncidentSeverity.medium,
-                affected_resources=[fact.resource_ref],
-                symptoms=[
-                    f"Container {container_name} has restarted {restart_count} times",
-                    f"Restart loop detected at {fact.timestamp.isoformat()}",
-                ],
-                summary=f"Restart loop detected: {container_name}",
-            )
-            
-            incidents.append({
-                "incident_id": incident.id,
-                "type": "restart_loop",
-                "resource": fact.resource_ref,
-                "details": fact.value,
-            })
+            if restart_count >= RESTART_LOOP_THRESHOLD:
+                # Check if incident already exists
+                existing = await self._get_open_incident(db, resource_ref)
+                if existing:
+                    continue
+                
+                container_name = fact.value.get("name", "unknown")
+                
+                # Create incident
+                incident = await self._create_incident(
+                    db,
+                    severity=IncidentSeverity.high if restart_count > 5 else IncidentSeverity.medium,
+                    affected_resources=[resource_ref],
+                    symptoms=[
+                        f"Container {container_name} has high restart count: {restart_count}",
+                        f"Status: {fact.value.get('status')}",
+                        f"Detected at: {fact.timestamp.isoformat()}",
+                    ],
+                    summary=f"Restart loop detected: {container_name}",
+                )
+                
+                incidents.append({
+                    "incident_id": incident.id,
+                    "type": "restart_loop",
+                    "resource": resource_ref,
+                    "details": fact.value,
+                })
         
         return incidents
     

@@ -33,7 +33,7 @@ class FactCollector:
         count = 0
         
         for container in containers:
-            # Container status fact
+            # Container status fact (Observation only)
             await self._store_fact(
                 db,
                 resource_ref=container["resource_ref"],
@@ -48,20 +48,6 @@ class FactCollector:
                 source="docker",
             )
             count += 1
-            
-            # Check for restart loop (multiple restarts recently)
-            if container["restart_count"] > 3:
-                await self._store_fact(
-                    db,
-                    resource_ref=container["resource_ref"],
-                    fact_type="restart_loop_detected",
-                    value={
-                        "restart_count": container["restart_count"],
-                        "container_name": container["name"],
-                    },
-                    source="docker",
-                )
-                count += 1
         
         return count
     
