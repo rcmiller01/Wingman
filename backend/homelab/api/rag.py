@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from homelab.storage.database import get_db
-from homelab.rag.vector_store import vector_store
+from homelab.rag.rag_indexer import rag_indexer
 from homelab.rag.log_summarizer import log_summarizer
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -21,8 +21,15 @@ class SummarizeRequest(BaseModel):
 async def search_rag(request: SearchRequest):
     """Search vector store for similar content."""
     try:
-        results = await vector_store.search_similar(request.query, limit=request.limit)
-        return {"query": request.query, "results": results}
+        narratives = await rag_indexer.search_narratives(request.query, limit=request.limit)
+        summaries = await rag_indexer.search_summaries(request.query, limit=request.limit)
+        return {
+            "query": request.query,
+            "results": {
+                "narratives": narratives,
+                "log_summaries": summaries,
+            },
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

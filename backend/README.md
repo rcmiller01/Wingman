@@ -40,4 +40,4 @@ POST /api/logs/file-sources
 }
 ```
 
-Use `PATCH /api/logs/file-sources/{id}` to toggle `enabled` or update paths. If no file sources are enabled, the file tailer is a no-op. Logs are stored with the standard retention policy and participate in error signature detection.
+Use `PATCH /api/logs/file-sources/{id}` to toggle `enabled` or update paths, and `DELETE /api/logs/file-sources/{id}` to remove a source. If no file sources are enabled, the file tailer is a no-op. Logs are stored with the standard retention policy and participate in error signature detection.

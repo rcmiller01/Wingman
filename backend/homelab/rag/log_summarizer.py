@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from homelab.storage.models import LogEntry, LogSummary
-from homelab.rag.vector_store import vector_store
+from homelab.rag.rag_indexer import rag_indexer
 from homelab.notifications.router import notification_router
 
 class LogSummarizer:

@@ -55,13 +55,10 @@ class NarrativeGenerator:
             logs.extend(log_result.scalars().all())
             
         # 4. RAG: Search for similar past incidents
-        from homelab.rag.vector_store import vector_store
+        from homelab.rag.rag_indexer import rag_indexer
         
         search_query = f"Incident on {', '.join(incident.affected_resources)}: {', '.join(incident.symptoms)}"
-        if vector_store:
-             similar_docs = await vector_store.search_similar(search_query, limit=2)
-        else:
-             similar_docs = []
+        similar_docs = await rag_indexer.search_narratives(search_query, limit=2)
         
         # 5. Construct Prompt
         prompt = self._construct_prompt(incident, facts, logs, similar_docs)
@@ -91,16 +88,15 @@ class NarrativeGenerator:
             await db.refresh(narrative) # Re-fetch to guarantee ID for indexing
 
         # 8. Index Narrative
-        if vector_store:
-            await vector_store.index_narrative(
-                narrative_id=str(narrative.id),
-                text=narrative_text,
-                meta={
-                    "incident_id": str(incident.id),
-                    "severity": incident.severity.value,
-                    "symptoms": incident.symptoms
-                }
-            )
+        await rag_indexer.index_narrative(
+            narrative_id=str(narrative.id),
+            narrative_text=narrative_text,
+            incident_id=str(incident.id),
+            metadata={
+                "severity": incident.severity.value,
+                "symptoms": incident.symptoms,
+            },
+        )
             
         return narrative
 
@@ -115,8 +111,7 @@ class NarrativeGenerator:
         if similar_docs:
             rag_context = "**Similar Past Incidents:**\n"
             for doc in similar_docs:
-                payload = doc.get("payload", {})
-                rag_context += f"- [Score {doc['score']:.2f}] {payload.get('text', '')[:200]}...\n"
+                rag_context += f"- [Score {doc['score']:.2f}] {doc.get('text', '')[:200]}...\n"
             rag_context += "\n"
         
         return f"""
