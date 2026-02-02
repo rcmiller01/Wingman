@@ -1,10 +1,11 @@
-"""LogEntry Collector - ingests container logs with retention metadata."""
+"""LogEntry Collector - ingests logs with retention metadata."""
 
 from datetime import datetime, timedelta
+from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from homelab.storage.models import LogEntry
+from homelab.storage.models import LogEntry, FileLogSource, Fact
 from homelab.adapters import docker_adapter
 
 
@@ -72,6 +73,53 @@ class LogEntryCollector:
             results[container["name"]] = count
         
         return results
+
+    async def collect_file_logs(self, db: AsyncSession, source: FileLogSource, max_lines: int = 500) -> int:
+        """Tail an opt-in file log source and store new entries."""
+        if not source.enabled:
+            return 0
+
+        path = Path(source.path)
+        if not path.exists() or not path.is_file():
+            return 0
+
+        retention_date = datetime.utcnow() + timedelta(days=source.retention_days)
+        count = 0
+
+        with path.open("r", encoding="utf-8", errors="ignore") as handle:
+            handle.seek(source.last_position)
+            for _ in range(max_lines):
+                line = handle.readline()
+                if not line:
+                    break
+                content = line.rstrip("\n")
+                if not content:
+                    continue
+                log = LogEntry(
+                    resource_ref=source.resource_ref,
+                    log_source="file",
+                    content=content,
+                    timestamp=datetime.utcnow(),
+                    retention_date=retention_date,
+                )
+                db.add(log)
+                count += 1
+
+            source.last_position = handle.tell()
+
+        return count
+
+    async def collect_all_file_logs(self, db: AsyncSession) -> dict[str, int]:
+        """Collect logs from all enabled file log sources."""
+        result = await db.execute(select(FileLogSource).where(FileLogSource.enabled.is_(True)))
+        sources = result.scalars().all()
+
+        results: dict[str, int] = {}
+        for source in sources:
+            count = await self.collect_file_logs(db, source)
+            results[source.name] = count
+
+        return results
     
     async def get_logs(
         self,
@@ -113,6 +161,19 @@ class LogEntryCollector:
         
         error_patterns = []
         error_keywords = ["error", "exception", "failed", "fatal", "panic", "crash"]
+
+        since = datetime.utcnow() - timedelta(hours=hours)
+        existing_facts = await db.execute(
+            select(Fact)
+            .where(Fact.resource_ref == resource_ref)
+            .where(Fact.fact_type == "log_error_signature")
+            .where(Fact.timestamp >= since)
+        )
+        known_log_ids = {
+            fact.value.get("log_id")
+            for fact in existing_facts.scalars().all()
+            if isinstance(fact.value, dict)
+        }
         
         for log in logs:
             content_lower = log.content.lower()
@@ -125,6 +186,21 @@ class LogEntryCollector:
                         "keyword": keyword,
                         "source": log.log_source,
                     })
+                    if log.id not in known_log_ids:
+                        db.add(
+                            Fact(
+                                resource_ref=resource_ref,
+                                fact_type="log_error_signature",
+                                value={
+                                    "log_id": log.id,
+                                    "keyword": keyword,
+                                    "source": log.log_source,
+                                    "content": log.content[:200],
+                                },
+                                source="logs",
+                                timestamp=log.timestamp,
+                            )
+                        )
                     break  # Only match first keyword per log
         
         return error_patterns

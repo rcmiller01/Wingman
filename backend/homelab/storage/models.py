@@ -101,6 +101,21 @@ class LogSummary(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class FileLogSource(Base):
+    """Opt-in file log sources for tailing."""
+    __tablename__ = "file_log_sources"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    resource_ref: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=90)
+    last_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class Incident(Base):
     """Detected issues requiring investigation."""
     __tablename__ = "incidents"

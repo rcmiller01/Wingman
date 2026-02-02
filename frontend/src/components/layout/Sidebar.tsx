@@ -18,7 +18,7 @@ export function Sidebar() {
                 </div>
                 <div>
                     <h1 className="text-white font-semibold">Homelab Copilot</h1>
-                    <p className="text-slate-400 text-xs">Phase 3 • Incident Engine</p>
+                    <p className="text-slate-400 text-xs">Phase 5 • Memory + RAG</p>
                 </div>
             </div>
 
@@ -26,7 +26,7 @@ export function Sidebar() {
                 <NavLink href="/" icon="📊" label="Dashboard" active={isActive('/')} />
                 <NavLink href="/inventory" icon="🖥️" label="Inventory" active={isActive('/inventory')} />
                 <NavLink href="/incidents" icon="🚨" label="Incidents" active={isActive('/incidents')} />
-                <NavLink href="#" icon="📋" label="Actions" soon />
+                <NavLink href="/actions" icon="📋" label="Actions" active={isActive('/actions')} />
             </nav>
 
             <div className="mt-auto pt-8 border-t border-slate-800">
@@ -56,7 +56,6 @@ function NavLink({ href, icon, label, active, soon }: { href: string; icon: stri
         >
             <span>{icon}</span>
             <span>{label}</span>
-            {soon && <span className="ml-auto text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded border border-slate-700">Soon</span>}
         </Link>
     );
 }

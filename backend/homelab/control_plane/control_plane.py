@@ -10,17 +10,18 @@ from datetime import datetime
 import logging
 import time
 
-from sqlalchemy import select, or_
+from sqlalchemy import select
 
 from homelab.storage.database import async_session_maker
 from homelab.storage.models import Incident, IncidentStatus, ActionHistory, ActionStatus, IncidentNarrative
 from homelab.collectors import fact_collector, log_collector
 from homelab.control_plane.incident_detector import incident_detector
-from homelab.control_plane.plan_generator import plan_generator
+from homelab.control_plane.planner import planner
 from homelab.control_plane.plan_executor import plan_executor
 from homelab.control_plane.plan_validator import plan_validator
-from homelab.notifications.router import notification_router
+from homelab.notifications.webhook import notifier
 from homelab.rag.narrative_generator import narrative_generator
+from homelab.policy.policy_engine import policy_engine
 
 # Setup logger
 logger = logging.getLogger("control_plane")
@@ -59,7 +60,8 @@ class ControlPlane:
                 print(f"[ControlPlane] Collected facts: {fact_counts}")
                 
                 log_counts = await log_collector.collect_all_container_logs(db, since_minutes=10)
-                total_logs = sum(log_counts.values())
+                file_log_counts = await log_collector.collect_all_file_logs(db)
+                total_logs = sum(log_counts.values()) + sum(file_log_counts.values())
                 if total_logs > 0:
                     print(f"[ControlPlane] Collected {total_logs} new logs")
                 
@@ -69,28 +71,46 @@ class ControlPlane:
                 new_incidents = await incident_detector.detect_all(db)
                 if new_incidents:
                     print(f"[ControlPlane] Detected {len(new_incidents)} new incidents")
-                    # NEW: Dispatch alerts immediately
-                    for incident_data in new_incidents:
-                        # Fetch the full incident object
-                        incident = await incident_detector._get_open_incident(db, incident_data["resource"])
-                        if incident:
-                           await notification_router.notify_incident(incident)
                 
                 # 3. PLAN
                 await self._transition_to(ControlPlaneState.PLAN)
-                # In Phase 4: Propose plans for open incidents
-                
                 # Fetch open incidents needing plans
                 result = await db.execute(
                     select(Incident).where(Incident.status == IncidentStatus.open)
                 )
                 incidents_needing_plans = result.scalars().all()
-                
+
                 new_plans = []
                 for incident in incidents_needing_plans:
-                    plans = await plan_generator.generate_plans(db, incident.id)
-                    new_plans.extend(plans)
-                
+                    existing_plans = await db.execute(
+                        select(ActionHistory)
+                        .where(ActionHistory.incident_id == incident.id)
+                        .where(ActionHistory.status.in_([ActionStatus.pending, ActionStatus.approved, ActionStatus.executing]))
+                    )
+                    if existing_plans.scalars().first():
+                        continue
+
+                    proposal = await planner.propose_for_incident(db, incident)
+                    is_valid, violations = policy_engine.validate(proposal)
+                    if not is_valid:
+                        print(f"[ControlPlane] Plan rejected by policy: {violations}")
+                        continue
+
+                    for step in proposal.steps:
+                        action = ActionHistory(
+                            incident_id=incident.id,
+                            action_template=step.action,
+                            target_resource=step.target,
+                            parameters={
+                                "params": step.params,
+                                "plan_id": proposal.id,
+                                "description": step.description,
+                            },
+                            status=ActionStatus.pending,
+                        )
+                        db.add(action)
+                        new_plans.append(action)
+
                 if new_plans:
                     print(f"[ControlPlane] Proposed {len(new_plans)} new plans")
 
@@ -119,6 +139,13 @@ class ControlPlane:
                 # Plans are already pending in DB effectively in TODO state
                 if valid_plans:
                     print(f"[ControlPlane] {len(valid_plans)} plans awaiting approval")
+                    await notifier.notify(
+                        "approval_required",
+                        {
+                            "pending_count": len(valid_plans),
+                            "incident_ids": list({plan.incident_id for plan in valid_plans if plan.incident_id}),
+                        },
+                    )
                 
                 # 6. APPROVAL
                 await self._transition_to(ControlPlaneState.APPROVAL)
