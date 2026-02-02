@@ -15,13 +15,15 @@ class LogSummarizer:
     async def summarize_expiring_logs(self, db: AsyncSession, retention_days: int = 90) -> int:
         """Find logs near expiry, summarize them, and store summaries."""
         # Target logs expiring in the next 24 hours (or already expired but not purged)
-        cutoff = datetime.utcnow() - timedelta(days=retention_days - 1)
+        now = datetime.utcnow()
+        retention_window_start = now - timedelta(days=retention_days)
+        retention_window_end = now + timedelta(days=1)
         
         # 1. Group by Resource
         # We want to know which resources have expiring logs
         query = (
             select(LogEntry.resource_ref, func.count(LogEntry.id))
-            .where(LogEntry.timestamp < cutoff)
+            .where(LogEntry.retention_date.between(retention_window_start, retention_window_end))
             .group_by(LogEntry.resource_ref)
         )
         result = await db.execute(query)
@@ -37,7 +39,7 @@ class LogSummarizer:
             log_query = (
                 select(LogEntry)
                 .where(LogEntry.resource_ref == resource_ref)
-                .where(LogEntry.timestamp < cutoff)
+                .where(LogEntry.retention_date.between(retention_window_start, retention_window_end))
                 .order_by(LogEntry.timestamp.asc())
                 .limit(100)
             )
@@ -67,16 +69,15 @@ class LogSummarizer:
             await db.refresh(summary)
             
             # 4. Index in Vector Store
-            await rag_indexer.index_log_summary(
-                resource_ref=resource_ref,
-                summary_text=summary_text,
-                time_range={
-                    "start": start_date.isoformat(),
-                    "end": end_date.isoformat(),
-                },
-                metadata={
-                    "summary_id": str(summary.id),
+            await vector_store.index_log_summary(
+                summary_id=str(summary.id),
+                text=summary_text,
+                meta={
+                    "resource_ref": resource_ref,
+                    "period_start": start_date.isoformat(),
+                    "period_end": end_date.isoformat(),
                     "log_count": count,
+                    "retention_date": retention_date.isoformat(),
                 },
             )
 

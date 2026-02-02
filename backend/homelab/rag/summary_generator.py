@@ -1,22 +1,12 @@
 """Summary Generator - generates log summaries for long-term storage."""
 
-import logging
-import httpx
+from collections import Counter
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from homelab.config import get_settings
 from homelab.storage.models import LogEntry
 from homelab.rag.rag_indexer import rag_indexer
-from homelab.llm.validators import SummaryOutput
-
-
-settings = get_settings()
-logger = logging.getLogger(__name__)
-
-# Summary generation timeout
-LLM_TIMEOUT_SECONDS = 120
 
 
 class SummaryGenerator:
@@ -46,32 +36,7 @@ class SummaryGenerator:
         if not logs:
             return None
         
-        # Build log text
-        log_text = "\n".join([
-            f"[{log.timestamp.strftime('%H:%M:%S')}] [{log.log_source}] {log.content[:200]}"
-            for log in logs
-        ])
-        
-        # Truncate if too long
-        if len(log_text) > 8000:
-            log_text = log_text[:8000] + "\n... (truncated)"
-        
-        # Generate summary
-        prompt = f"""Summarize the following container logs from {date.strftime('%Y-%m-%d')}.
-Focus on:
-1. Key events and state changes
-2. Any errors or warnings
-3. Performance patterns
-4. Notable anomalies
-
-LogEntrys:
-{log_text}
-
-Provide a concise Markdown summary (under 500 words):"""
-        
-        summary = await self._call_llm(prompt)
-        if summary:
-            summary = SummaryOutput.model_validate({"text": summary}, strict=True).text
+        summary = self._summarize_logs_locally(resource_ref, logs)
         
         if summary:
             # Index into RAG
@@ -114,42 +79,47 @@ Provide a concise Markdown summary (under 500 words):"""
         if len(combined) > 6000:
             combined = combined[:6000] + "\n... (truncated)"
         
-        prompt = f"""Create a monthly executive summary from these daily log summaries for {year}-{month:02d}.
-Highlight:
-1. Major incidents and resolutions
-2. Recurring patterns or issues
-3. Overall system health trends
-4. Key metrics if available
+        return (
+            f"## Monthly Log Summary for {resource_ref} ({year}-{month:02d})\n\n"
+            f"- Days summarized: {len(summaries)}\n\n"
+            "### Daily Highlights\n"
+            f"{combined}\n"
+        )
 
-Daily Summaries:
-{combined}
+    def _summarize_logs_locally(self, resource_ref: str, logs: list[LogEntry]) -> str:
+        """Generate a deterministic summary without LLM calls."""
+        total_logs = len(logs)
+        sources = Counter(log.log_source for log in logs)
+        keywords = ["error", "exception", "failed", "fatal", "panic", "crash"]
+        keyword_counts = Counter()
+        samples = []
 
-Provide a concise monthly summary (under 300 words):"""
-        
-        summary = await self._call_llm(prompt)
-        if summary:
-            return SummaryOutput.model_validate({"text": summary}, strict=True).text
-        return summary
-    
-    async def _call_llm(self, prompt: str) -> str | None:
-        """Call Ollama for generation."""
-        try:
-            async with httpx.AsyncClient(timeout=LLM_TIMEOUT_SECONDS) as client:
-                response = await client.post(
-                    f"{settings.ollama_host}/api/generate",
-                    json={
-                        "model": settings.ollama_model,
-                        "prompt": prompt,
-                        "stream": False,
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("response")
-                
-        except Exception as e:
-            logger.error("[SummaryGenerator] LLM error: %s", e)
-            return None
+        for log in logs:
+            content = log.content.strip()
+            if len(samples) < 5 and content:
+                samples.append(f"- [{log.timestamp.isoformat()}] {content[:200]}")
+            lower = content.lower()
+            for keyword in keywords:
+                if keyword in lower:
+                    keyword_counts[keyword] += 1
+                    break
+
+        source_summary = ", ".join(f"{name}: {count}" for name, count in sources.items())
+        keyword_summary = (
+            ", ".join(f"{key}: {count}" for key, count in keyword_counts.most_common())
+            if keyword_counts
+            else "none detected"
+        )
+        samples_text = "\n".join(samples) if samples else "- (no sample lines captured)"
+
+        return (
+            f"## Log Summary for {resource_ref}\n\n"
+            f"- Total entries: {total_logs}\n"
+            f"- Sources: {source_summary}\n"
+            f"- Error keywords: {keyword_summary}\n\n"
+            "### Sample Entries\n"
+            f"{samples_text}\n"
+        )
 
 
 # Singleton

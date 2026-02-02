@@ -143,6 +143,8 @@ class LogEntryCollector:
     async def purge_expired_logs(self, db: AsyncSession) -> int:
         """Delete logs past their retention date."""
         now = datetime.utcnow()
+        from homelab.rag.log_summarizer import log_summarizer
+        await log_summarizer.summarize_expiring_logs(db, retention_days=LOG_RETENTION_DAYS)
         
         result = await db.execute(
             delete(LogEntry).where(LogEntry.retention_date < now)
