@@ -7,12 +7,22 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+import sys
+from os.path import dirname, abspath
+
+# Add parent directory to sys.path
+parent_dir = dirname(dirname(abspath(__file__)))
+sys.path.insert(0, parent_dir)
+print(f"DEBUG: parent_dir={parent_dir}")
+print(f"DEBUG: sys.path={sys.path}")
+print(f"DEBUG: sys.executable={sys.executable}")
+
 from alembic import context
 
 # Import models and database config
-from app.storage.database import Base
-from app.storage import models  # noqa: F401 - Import to register models
-from app.config import get_settings
+from homelab.storage.database import Base
+from homelab.storage import models  # noqa: F401 - Import to register models
+from homelab.config import get_settings
 
 config = context.config
 settings = get_settings()

@@ -27,7 +27,7 @@ services:
         condition: service_started
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./backend/app:/app/app
+      - ./backend/homelab:/app/homelab
       - ./knowledge:/app/knowledge
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -62,6 +62,20 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+  # Frontend (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
 
   qdrant:
     image: qdrant/qdrant:latest
