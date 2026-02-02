@@ -13,6 +13,8 @@ interface Incident {
     narrative?: {
         narrativeText: string;
         rootCauseHypothesis?: string | null;
+        confidence?: number | null;
+        resolutionSteps?: string[];
     };
 }
 
@@ -29,7 +31,8 @@ export default function IncidentDetailPage() {
                 return res.json();
             })
             .then(data => {
-                setIncident(mapIncidentDetail(data));
+                const mapped = mapIncidentDetail(data);
+                setIncident(mapped);
                 setLoading(false);
             })
             .catch(err => {
@@ -76,15 +79,46 @@ export default function IncidentDetailPage() {
 
                 <div className="prose prose-invert max-w-none">
                     <div className="whitespace-pre-wrap font-sans text-slate-300 leading-relaxed text-lg">
-                        {incident.narrative?.narrativeText}
+                        {incident.narrative?.narrativeText || 'No narrative available yet.'}
                     </div>
                 </div>
 
-                {incident.narrative?.rootCauseHypothesis && (
-                    <div className="mt-8 bg-slate-900/50 rounded-lg p-4 border border-slate-700/30">
-                        <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Root Cause Hypothesis</h4>
-                        <p className="text-copilot-300">{incident.narrative.rootCauseHypothesis}</p>
+                {incident.narrative &&
+                    (incident.narrative.rootCauseHypothesis ||
+                        (incident.narrative.confidence !== null && incident.narrative.confidence !== undefined)) && (
+                    <div className="mt-8 bg-slate-900/50 rounded-lg p-4 border border-slate-700/30 space-y-2">
+                        <div className="flex items-center justify-between">
+                            <h4 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Root Cause Hypothesis</h4>
+                            {incident.narrative?.confidence !== null && incident.narrative?.confidence !== undefined && (
+                                <span className="text-xs text-slate-500">Confidence {(incident.narrative.confidence * 100).toFixed(0)}%</span>
+                            )}
+                        </div>
+                        {incident.narrative?.rootCauseHypothesis ? (
+                            <p className="text-copilot-300">{incident.narrative.rootCauseHypothesis}</p>
+                        ) : (
+                            <p className="text-slate-500">No hypothesis captured yet.</p>
+                        )}
                     </div>
+                )}
+            </div>
+
+            <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">Remediation Plans</h3>
+                    <Link href="/actions" className="text-copilot-300 hover:text-copilot-200 text-sm">
+                        Review approvals →
+                    </Link>
+                </div>
+                {incident.narrative?.resolutionSteps && incident.narrative.resolutionSteps.length > 0 ? (
+                    <ul className="list-disc list-inside text-slate-300 space-y-1">
+                        {incident.narrative.resolutionSteps.map(step => (
+                            <li key={step}>{step}</li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-slate-400 text-sm">
+                        Proposed actions will appear in the approval queue before anything runs.
+                    </p>
                 )}
             </div>
 
@@ -103,17 +137,23 @@ export default function IncidentDetailPage() {
     );
 }
 
-function mapIncidentDetail(payload: any): Incident {
+function mapIncidentDetail(payload: any): Incident | null {
+    if (!payload?.incident) {
+        return null;
+    }
+
     return {
-        id: payload.incident?.id,
-        severity: payload.incident?.severity,
-        status: payload.incident?.status,
-        affectedResources: payload.incident?.affected_resources || [],
-        detectedAt: payload.incident?.detected_at,
+        id: payload.incident.id,
+        severity: payload.incident.severity,
+        status: payload.incident.status,
+        affectedResources: payload.incident.affected_resources || [],
+        detectedAt: payload.incident.detected_at,
         narrative: payload.narrative
             ? {
-                  narrativeText: payload.narrative.narrative_text,
-                  rootCauseHypothesis: payload.narrative.root_cause,
+                  narrativeText: payload.narrative.narrative_text || '',
+                  rootCauseHypothesis: payload.narrative.root_cause ?? null,
+                  confidence: payload.narrative.confidence ?? null,
+                  resolutionSteps: payload.narrative.resolution_steps || [],
               }
             : undefined,
     };
