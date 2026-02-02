@@ -61,6 +61,13 @@ class ControlPlane:
                 new_incidents = await incident_detector.detect_all(db)
                 if new_incidents:
                     print(f"[ControlPlane] Detected {len(new_incidents)} new incidents")
+                    # NEW: Dispatch alerts immediately
+                    from homelab.notifications.router import notification_router  # Lazy import to avoid circular dep
+                    for incident_data in new_incidents:
+                        # Fetch the full incident object
+                        incident = await incident_detector._get_open_incident(db, incident_data["resource"])
+                        if incident:
+                           await notification_router.notify_incident(incident)
                 
                 # 3. PLAN
                 await self._transition_to(ControlPlaneState.PLAN)
@@ -83,6 +90,22 @@ class ControlPlane:
                 
                 # 9. RECORD
                 await self._transition_to(ControlPlaneState.RECORD)
+                # NEW: Generate narratives for open incidents with placeholder narratives
+                from homelab.rag.narrative_generator import narrative_generator
+                from homelab.storage.models import Incident, IncidentNarrative
+                from sqlalchemy import select, or_
+                
+                # Find incidents with placeholder narratives
+                result = await db.execute(
+                    select(Incident)
+                    .join(IncidentNarrative)
+                    .where(IncidentNarrative.narrative_text.contains("Analysis pending..."))
+                )
+                incidents_needing_analysis = result.scalars().all()
+                
+                for incident in incidents_needing_analysis:
+                    print(f"[ControlPlane] Generating analysis for incident {incident.id}")
+                    await narrative_generator.generate_narrative(db, incident.id)
                 
                 await db.commit()
                 
