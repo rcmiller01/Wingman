@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from homelab.config import get_settings
+from homelab.notifications.payloads import build_webhook_payload
 
 
 logger = logging.getLogger(__name__)
@@ -60,11 +61,16 @@ class WebhookChannel(AlertChannel):
     async def send(self, title: str, message: str, payload: dict[str, Any]) -> bool:
         if not self.url:
             return False
+        event_type = payload.get("event_type", "alert")
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.post(
                     self.url,
-                    json={"title": title, "message": message, "payload": payload},
+                    json=build_webhook_payload(
+                        event_type,
+                        {"title": title, "message": message, "payload": payload},
+                    ),
+                    headers={"X-Copilot-Event": event_type},
                 )
                 response.raise_for_status()
             return True

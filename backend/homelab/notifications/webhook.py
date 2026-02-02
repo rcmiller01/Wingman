@@ -2,14 +2,14 @@
 
 import hmac
 import hashlib
+import logging
 import json
 import time
 import httpx
-import logging
-from datetime import datetime
 from typing import Any, Dict, Optional
 
 from homelab.config import get_settings
+from homelab.notifications.payloads import build_webhook_payload
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -26,12 +26,7 @@ class WebhookNotifier:
         if not self.webhook_url:
             return False
             
-        payload = {
-            "version": "1.0",
-            "event_type": event_type,
-            "timestamp": datetime.utcnow().isoformat(),
-            "data": data
-        }
+        payload = build_webhook_payload(event_type, data)
         
         headers = {
             "Content-Type": "application/json",
