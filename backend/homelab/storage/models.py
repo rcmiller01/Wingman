@@ -186,6 +186,37 @@ class ActionHistory(Base):
     incident: Mapped["Incident | None"] = relationship(back_populates="actions")
 
 
+class TodoStep(Base):
+    """Pending plan steps awaiting approval."""
+    __tablename__ = "todo_steps"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    plan_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    incident_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), ForeignKey("incidents.id", ondelete="SET NULL"), nullable=True)
+
+    order: Mapped[int] = mapped_column(Integer, nullable=False)
+    action_template: Mapped[ActionTemplate] = mapped_column(Enum(ActionTemplate), nullable=False)
+    target_resource: Mapped[str] = mapped_column(String(255), nullable=False)
+    parameters: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verification: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    status: Mapped[ActionStatus] = mapped_column(Enum(ActionStatus), nullable=False, default=ActionStatus.pending)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    action_history_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), ForeignKey("action_history.id", ondelete="SET NULL"), nullable=True)
+
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Relationships
+    incident: Mapped["Incident | None"] = relationship()
+    action_history: Mapped["ActionHistory | None"] = relationship()
+
+
 class AccessLog(Base):
     """API access audit trail."""
     __tablename__ = "access_logs"

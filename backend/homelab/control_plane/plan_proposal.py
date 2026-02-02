@@ -4,8 +4,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any
+import uuid
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from homelab.storage.models import ActionTemplate
 
@@ -102,3 +103,68 @@ class PlanProposalSchema(BaseModel):
     title: str = Field(..., min_length=1)
     description: str = Field(default="", max_length=4000)
     steps: list[PlanStepSchema] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_step_order(self) -> "PlanProposalSchema":
+        orders = [step.order for step in self.steps]
+        if len(orders) != len(set(orders)):
+            raise ValueError("Step orders must be unique")
+        if orders and orders != sorted(orders):
+            raise ValueError("Step orders must be sorted ascending")
+        return self
+
+
+def proposal_payload_from_plan(plan: PlanProposal) -> dict[str, Any]:
+    """Convert a PlanProposal into a schema payload for deterministic validation."""
+    return {
+        "title": plan.title,
+        "description": plan.description,
+        "steps": [
+            {
+                "order": step.order,
+                "action": step.action,
+                "target": step.target,
+                "params": step.params,
+                "description": step.description,
+                "verification": step.verification,
+            }
+            for step in plan.steps
+        ],
+    }
+
+
+def validate_plan_proposal(plan: PlanProposal) -> tuple[bool, list[str]]:
+    """Validate a PlanProposal deterministically against the schema."""
+    try:
+        PlanProposalSchema.model_validate(proposal_payload_from_plan(plan), strict=True)
+    except ValidationError as exc:
+        errors = [f"{error['loc']}: {error['msg']}" for error in exc.errors()]
+        return False, errors
+    except ValueError as exc:
+        return False, [str(exc)]
+    return True, []
+
+
+def plan_proposal_from_payload(payload: dict[str, Any], incident_id: str | None) -> PlanProposal:
+    """Build a PlanProposal instance from a validated schema payload."""
+    validated = PlanProposalSchema.model_validate(payload, strict=True)
+    plan_steps = [
+        PlanStep(
+            order=step.order,
+            action=step.action,
+            target=step.target,
+            params=step.params,
+            description=step.description,
+            verification=step.verification,
+        )
+        for step in validated.steps
+    ]
+    return PlanProposal(
+        id=str(uuid.uuid4()),
+        incident_id=incident_id,
+        title=validated.title,
+        description=validated.description,
+        steps=plan_steps,
+        created_at=datetime.utcnow(),
+        status=PlanStatus.pending,
+    )
