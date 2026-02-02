@@ -6,6 +6,7 @@
 
 **Non-negotiables:**
 - **Cloud-first reasoning** via user API keys; **local fallback** model for always-on classification/summarization/tool-selection.
+- **Cloud LLM access is via user-provided API keys; local models are always-on for classification/summarization/tool selection.**
 - **No raw logs sent to cloud models.** Only distilled summaries and historical context (RAG output) + current incident summary may be sent.
 - **No autonomous destructive actions.** Only **Guide** and **Assist** modes; Assist is bounded to non-auth, non-destructive steps.
 - **Plugins never execute.** Plugins only observe/interpret/recommend using action templates.
@@ -485,4 +486,3 @@ Deliverables:
 - Guide Mode control plane
 
 Stop when the MVP checklist is satisfied.
-
