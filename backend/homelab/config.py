@@ -56,6 +56,33 @@ class Settings(BaseSettings):
     webhook_url: str | None = None
     webhook_secret: str | None = None
 
+    # OpenTelemetry (optional)
+    otel_endpoint: str | None = None
+    otel_service_name: str = "homelab-copilot-backend"
+
+    # Logging sinks (optional)
+    ntfy_url: str | None = None
+    ntfy_topic: str | None = None
+    gotify_url: str | None = None
+    gotify_token: str | None = None
+    syslog_host: str | None = None
+    syslog_port: int = 514
+
+    # Alerting (optional)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str | None = None
+    smtp_to: str | None = None
+    discord_webhook_url: str | None = None
+    slack_webhook_url: str | None = None
+    matrix_webhook_url: str | None = None
+    telegram_bot_token: str | None = None
+    telegram_chat_id: str | None = None
+    make_webhook_url: str | None = None
+    plane_webhook_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:

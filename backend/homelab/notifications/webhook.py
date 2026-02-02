@@ -5,12 +5,14 @@ import hashlib
 import json
 import time
 import httpx
+import logging
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 from homelab.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 class WebhookNotifier:
     """Service for sending notifications via webhooks."""
@@ -61,7 +63,7 @@ class WebhookNotifier:
                 response.raise_for_status()
                 return True
         except Exception as e:
-            print(f"[Copilot] Failed to send webhook notification: {e}")
+            logger.error("[Copilot] Failed to send webhook notification: %s", e)
             return False
 
 # Global instance

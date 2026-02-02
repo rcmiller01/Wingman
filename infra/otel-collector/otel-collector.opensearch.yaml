@@ -1,0 +1,28 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  batch:
+
+exporters:
+  opensearch:
+    http:
+      endpoint: http://opensearch:9200
+      tls:
+        insecure: true
+    logs_index: wingman-logs
+    traces_index: wingman-traces
+
+service:
+  pipelines:
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [opensearch]
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [opensearch]

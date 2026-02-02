@@ -14,7 +14,7 @@ from homelab.control_plane.plan_proposal import (
     PlanStatus,
 )
 from homelab.storage.models import ActionTemplate
-from homelab.notifications.webhook import notifier
+from homelab.notifications.router import notification_router
 
 settings = get_settings()
 _cloud_degraded_notified = False
@@ -112,12 +112,14 @@ class Planner:
         if _cloud_degraded_notified:
             return
         _cloud_degraded_notified = True
-        await notifier.notify(
+        await notification_router.notify_event(
             "degraded_mode_enabled",
             {
                 "reason": reason,
                 "fallback": "local_planner",
             },
+            severity="warning",
+            tags=["degraded"],
         )
 
 # Singleton

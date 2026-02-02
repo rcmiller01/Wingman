@@ -1,6 +1,7 @@
 """Narrative Generator - Uses LLM to summarize incidents."""
 
 import json
+import logging
 import httpx
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,7 @@ from homelab.storage.models import Incident, IncidentNarrative, Fact, LogEntry
 from homelab.llm.validators import NarrativeOutput
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 class NarrativeGenerator:
     """Generates human-readable narratives for incidents using local LLM."""
@@ -160,7 +162,7 @@ You are an expert Site Reliability Engineer (SRE). Analyze the following inciden
                 response.raise_for_status()
                 return response.json().get("response", "Error: Empty response from LLM")
         except Exception as e:
-            print(f"[NarrativeGenerator] LLM Error: {e}")
+            logger.error("[NarrativeGenerator] LLM Error: %s", e)
             return f"**Error generating narrative:** {str(e)}"
 
 # Singleton
