@@ -4,7 +4,7 @@ from typing import Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from homelab.storage.models import ActionHistory, ActionTemplate, ActionStatus
+from homelab.storage.models import ActionHistory, ActionTemplate, TodoStep
 from homelab.adapters.docker_adapter import docker_adapter
 from homelab.adapters.proxmox_adapter import proxmox_adapter
 
@@ -51,6 +51,36 @@ class PlanValidator:
         if action.action_template == ActionTemplate.restart_resource:
             if not (target.startswith("docker://") or target.startswith("proxmox://") or "qemu" in target or "lxc" in target):
                  return False, f"Restart not supported for {target}"
+
+        return True, None
+
+    async def validate_todo_step(self, db: AsyncSession, todo: TodoStep) -> Tuple[bool, str | None]:
+        """Validate a TodoStep proposal. Returns (is_valid, reason)."""
+        target = todo.target_resource
+        if target.startswith("docker://"):
+            container_id = target.split("://")[-1]
+            container = await docker_adapter.get_container(container_id)
+            if not container:
+                return False, f"Docker container {container_id} not found"
+
+        elif target.startswith("proxmox://"):
+            try:
+                parts = target.split("/")
+                node = parts[2]
+                rest = "/".join(parts[3:])
+                if "qemu" in rest or "lxc" in rest:
+                    pass
+                else:
+                    pass
+            except Exception:
+                return False, f"Invalid Proxmox resource ref: {target}"
+
+        else:
+            return False, f"Unsupported resource type: {target}"
+
+        if todo.action_template == ActionTemplate.restart_resource:
+            if not (target.startswith("docker://") or target.startswith("proxmox://") or "qemu" in target or "lxc" in target):
+                return False, f"Restart not supported for {target}"
 
         return True, None
 

@@ -1,18 +1,11 @@
 """Planner - AI-driven coordinator that proposes remediation plans."""
 
-import uuid
-from datetime import datetime
 from typing import Any
 
 from homelab.config import get_settings
 from homelab.storage.models import Incident
 from homelab.control_plane.situation_builder import situation_builder
-from homelab.control_plane.plan_proposal import (
-    PlanProposal,
-    PlanStep,
-    PlanProposalSchema,
-    PlanStatus,
-)
+from homelab.control_plane.plan_proposal import PlanProposal, plan_proposal_from_payload
 from homelab.storage.models import ActionTemplate
 from homelab.notifications.router import notification_router
 
@@ -84,28 +77,7 @@ class Planner:
         if settings.openai_api_key is None:
             await self._notify_cloud_degraded("missing_openai_key")
 
-        validated = PlanProposalSchema.model_validate(plan_data, strict=True)
-        plan_steps = [
-            PlanStep(
-                order=step.order,
-                action=step.action,
-                target=step.target,
-                params=step.params,
-                description=step.description,
-                verification=step.verification,
-            )
-            for step in validated.steps
-        ]
-
-        return PlanProposal(
-            id=str(uuid.uuid4()),
-            incident_id=str(incident.id),
-            title=validated.title,
-            description=validated.description,
-            steps=plan_steps,
-            created_at=datetime.utcnow(),
-            status=PlanStatus.pending,
-        )
+        return plan_proposal_from_payload(plan_data, str(incident.id))
 
     async def _notify_cloud_degraded(self, reason: str) -> None:
         global _cloud_degraded_notified
