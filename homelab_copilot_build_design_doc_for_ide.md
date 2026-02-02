@@ -507,3 +507,47 @@ Deliverables:
 - Guide Mode control plane
 
 Stop when the MVP checklist is satisfied.
+
+---
+
+## 17) Implementation Plan Tasks (Per Step)
+
+Create and track each task below as an individual work item. These tasks map 1:1 to the implementation plan steps and should be completed in order unless otherwise noted.
+
+### Step 1: API & Data Contract Fixes
+- [ ] Align incidents list API responses with frontend expectations (incidents array, status filtering semantics).
+- [ ] Fix incident detail response handling on the frontend (map `{ incident, narrative }` to UI model).
+- [ ] Remove direct action execution from incident detail; route all actions through plan/todo approval.
+- [ ] Resolve frontend incident detail rendering errors (JSX syntax + field usage).
+
+### Step 2: Control Plane PlanProposal + Policy
+- [ ] Implement PlanProposal schema for cloud planner output (ActionTemplate-based).
+- [ ] Add deterministic schema validation for all plan proposals.
+- [ ] Integrate policy engine checks (allowed actions, targets, step count).
+- [ ] Generate TodoSteps from validated plans and store them for approval.
+- [ ] Enforce approval gating in the Control Plane state machine before execution.
+
+### Step 3: Log Summary Pipeline Fixes
+- [ ] Fix log summarizer to use `LogEntry.content` and correct field names.
+- [ ] Store log summaries using `period_start/period_end` and retention metadata.
+- [ ] Replace broken LLM call with the correct local summarization method.
+- [ ] Ensure summaries are generated before purge and indexed for RAG.
+
+### Step 4: File Log Ingestion (Optional Per-Service)
+- [ ] Add file log source configuration endpoints (add/update/remove).
+- [ ] Implement file tailer that writes file logs into `LogEntry` with retention.
+- [ ] Extend error signature extraction to include file log sources.
+- [ ] Document opt-in configuration and default-disabled behavior.
+
+### Step 5: Webhook Event Standardization
+- [ ] Emit `incident_detected` on incident creation.
+- [ ] Emit `incident_resolved` on incident resolution.
+- [ ] Emit `approval_required` when TodoSteps await user approval.
+- [ ] Emit `digest_ready` on log summary generation completion.
+- [ ] Emit `degraded_mode_enabled` when cloud LLM access is unavailable.
+- [ ] Normalize webhook payload schema across notification paths.
+
+### Step 6: RAG Indexing Consolidation
+- [ ] Choose a single indexing interface (`vector_store` or `rag_indexer`).
+- [ ] Migrate narrative and log summary indexing to the chosen interface.
+- [ ] Ensure only incident narratives + log summaries are indexed and retrievable.
