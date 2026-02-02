@@ -31,3 +31,20 @@ Configure optional log sinks via `.env`:
 - `SYSLOG_HOST` + `SYSLOG_PORT`
 
 Log sinks emit for `ERROR` and above by default.
+
+## File log sources (opt-in)
+
+File log ingestion is disabled by default. Enable it per service by creating a file log source and toggling `enabled=true`:
+
+```bash
+POST /api/logs/file-sources
+{
+  "name": "nginx-error",
+  "path": "/var/log/nginx/error.log",
+  "resource_ref": "file://nginx/error",
+  "enabled": true,
+  "retention_days": 90
+}
+```
+
+Use `PATCH /api/logs/file-sources/{id}` to update paths or change `enabled`, and `DELETE /api/logs/file-sources/{id}` to remove sources. File tailing is a no-op when all sources are disabled, but enabled file logs participate in the same retention and error signature extraction flow as container logs.
