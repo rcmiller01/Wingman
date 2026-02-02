@@ -3,8 +3,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from homelab.config import get_settings
-from homelab.storage import init_db
-from homelab.api import health_router, inventory_router, logs_router, facts_router, incidents_router, plans_router, rag_router
+from homelab.storage.database import init_db
+from homelab.api.health import router as health_router
+from homelab.api.inventory import router as inventory_router
+from homelab.api.logs import router as logs_router
+from homelab.api.facts import router as facts_router
+from homelab.api.incidents import router as incidents_router
+from homelab.api.plans import router as plans_router
+from homelab.api.rag import router as rag_router
 from homelab.scheduler import start_scheduler, stop_scheduler
 
 

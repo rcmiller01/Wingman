@@ -1,96 +1,80 @@
-"""Plan Generator - creates remediation plans from incidents."""
+"""Plan Generator - Proposes actions based on incidents."""
 
-import uuid
-from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from homelab.storage.models import Incident
-from homelab.control_plane.plan_proposal import (
-    PlanProposal, 
-    PlanStep, 
-    ActionType, 
-    PlanStatus,
+from homelab.storage.models import (
+    Incident,
+    IncidentStatus,
+    ActionHistory,
+    ActionTemplate,
+    ActionStatus,
 )
 
-
 class PlanGenerator:
-    """Generates remediation plans from incidents."""
+    """Generates remediation plans using heuristics (MVP) or LLM (Future)."""
     
-    async def generate_for_incident(
-        self,
-        db: AsyncSession,
-        incident: Incident,
-    ) -> PlanProposal:
-        """Generate a remediation plan for an incident."""
-        steps = []
+    async def generate_plans(self, db: AsyncSession, incident_id: str) -> list[ActionHistory]:
+        """Generate proposed actions for an incident."""
         
-        # Analyze symptoms to determine actions
-        for resource in incident.affected_resources:
-            if resource.startswith("docker://"):
-                # For Docker containers, suggest restart
-                steps.append(PlanStep(
-                    order=len(steps) + 1,
-                    action=ActionType.restart_container,
-                    target=resource,
-                    description=f"Restart container to clear error state",
-                    verification="Verify container status is 'running' and no new errors in logs",
-                ))
-        
-        # Create plan
-        plan = PlanProposal(
-            id=str(uuid.uuid4()),
-            incident_id=str(incident.id),
-            title=f"Remediation plan for incident {str(incident.id)[:8]}",
-            description=self._generate_description(incident),
-            steps=steps,
-            created_at=datetime.utcnow(),
-            status=PlanStatus.pending,
+        # 1. Fetch Incident
+        result = await db.execute(select(Incident).where(Incident.id == incident_id))
+        incident = result.scalar_one_or_none()
+        if not incident:
+            return []
+            
+        # 2. Check for existing plans to avoid duplicates
+        existing_plans = await db.execute(
+            select(ActionHistory)
+            .where(ActionHistory.incident_id == incident_id)
+            .where(ActionHistory.status.in_([ActionStatus.pending, ActionStatus.approved, ActionStatus.executing]))
         )
+        if existing_plans.scalars().first():
+            return []
+
+        proposed_actions = []
         
-        return plan
-    
-    def _generate_description(self, incident: Incident) -> str:
-        """Generate a plan description from incident symptoms."""
-        symptoms = "\n".join(f"- {s}" for s in incident.symptoms)
-        return f"""Automated remediation plan for detected incident.
-
-**Severity:** {incident.severity.value}
-
-**Symptoms:**
-{symptoms}
-
-This plan will attempt to restore normal operation by restarting affected services.
-"""
-
-    def create_manual_plan(
-        self,
-        title: str,
-        description: str,
-        steps: list[dict],
-        incident_id: str | None = None,
-    ) -> PlanProposal:
-        """Create a plan from manual specification."""
-        plan_steps = []
-        for i, step_data in enumerate(steps):
-            plan_steps.append(PlanStep(
-                order=i + 1,
-                action=ActionType(step_data["action"]),
-                target=step_data["target"],
-                params=step_data.get("params", {}),
-                description=step_data.get("description", ""),
-                verification=step_data.get("verification"),
-            ))
+        # 3. Heuristic Planning (MVP)
+        # In a real system, this would be a sophisticated policy engine or LLM
         
-        return PlanProposal(
-            id=str(uuid.uuid4()),
-            incident_id=incident_id,
-            title=title,
-            description=description,
-            steps=plan_steps,
-            created_at=datetime.utcnow(),
-            status=PlanStatus.pending,
-        )
+        # Rule 1: Restart Loops -> Propose Restart
+        # Check if any symptom mentions "high restart count"
+        restart_symptom = any("restart count" in s for s in incident.symptoms)
+        
+        if restart_symptom:
+            for resource_ref in incident.affected_resources:
+                if resource_ref.startswith("docker://"):
+                    proposed_actions.append(
+                        ActionHistory(
+                            incident_id=incident.id,
+                            action_template=ActionTemplate.restart_resource,
+                            target_resource=resource_ref,
+                            parameters={"timeout": 30},
+                            status=ActionStatus.pending
+                        )
+                    )
+        
+        # Rule 2: Stopped Resource -> Propose Start
+        # (This is just an example, might trigger for 'Status: exited')
+        if "Status: exited" in str(incident.symptoms):
+             for resource_ref in incident.affected_resources:
+                if resource_ref.startswith("docker://"):
+                    proposed_actions.append(
+                        ActionHistory(
+                            incident_id=incident.id,
+                            action_template=ActionTemplate.start_resource,
+                            target_resource=resource_ref,
+                            parameters={},
+                            status=ActionStatus.pending
+                        )
+                    )
 
+        # 4. Save Proposals
+        for action in proposed_actions:
+            db.add(action)
+            print(f"[PlanGenerator] Proposed action {action.action_template} for {action.target_resource}")
+            
+        return proposed_actions
 
 # Singleton
 plan_generator = PlanGenerator()

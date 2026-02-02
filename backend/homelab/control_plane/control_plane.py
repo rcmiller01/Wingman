@@ -10,9 +10,17 @@ from datetime import datetime
 import logging
 import time
 
+from sqlalchemy import select, or_
+
 from homelab.storage.database import async_session_maker
+from homelab.storage.models import Incident, IncidentStatus, ActionHistory, ActionStatus, IncidentNarrative
 from homelab.collectors import fact_collector, log_collector
-from homelab.control_plane import incident_detector, plan_generator, plan_executor
+from homelab.control_plane.incident_detector import incident_detector
+from homelab.control_plane.plan_generator import plan_generator
+from homelab.control_plane.plan_executor import plan_executor
+from homelab.control_plane.plan_validator import plan_validator
+from homelab.notifications.router import notification_router
+from homelab.rag.narrative_generator import narrative_generator
 
 # Setup logger
 logger = logging.getLogger("control_plane")
@@ -62,7 +70,6 @@ class ControlPlane:
                 if new_incidents:
                     print(f"[ControlPlane] Detected {len(new_incidents)} new incidents")
                     # NEW: Dispatch alerts immediately
-                    from homelab.notifications.router import notification_router  # Lazy import to avoid circular dep
                     for incident_data in new_incidents:
                         # Fetch the full incident object
                         incident = await incident_detector._get_open_incident(db, incident_data["resource"])
@@ -71,19 +78,68 @@ class ControlPlane:
                 
                 # 3. PLAN
                 await self._transition_to(ControlPlaneState.PLAN)
-                # No-op for skeleton, or call plan_generator if ready
+                # In Phase 4: Propose plans for open incidents
+                
+                # Fetch open incidents needing plans
+                result = await db.execute(
+                    select(Incident).where(Incident.status == IncidentStatus.open)
+                )
+                incidents_needing_plans = result.scalars().all()
+                
+                new_plans = []
+                for incident in incidents_needing_plans:
+                    plans = await plan_generator.generate_plans(db, incident.id)
+                    new_plans.extend(plans)
+                
+                if new_plans:
+                    print(f"[ControlPlane] Proposed {len(new_plans)} new plans")
+
                 
                 # 4. VALIDATE
                 await self._transition_to(ControlPlaneState.VALIDATE)
                 
+                # Fetch pending plans
+                result = await db.execute(
+                    select(ActionHistory).where(ActionHistory.status == ActionStatus.pending)
+                )
+                pending_plans = result.scalars().all()
+                
+                valid_plans = []
+                for plan in pending_plans:
+                    is_valid, reason = await plan_validator.validate_action(db, plan.id)
+                    if not is_valid:
+                        print(f"[ControlPlane] Invalid Plan {plan.id}: {reason}")
+                        plan.status = ActionStatus.failed
+                        plan.error = reason
+                    else:
+                        valid_plans.append(plan)
+                
                 # 5. TODO
                 await self._transition_to(ControlPlaneState.TODO)
+                # Plans are already pending in DB effectively in TODO state
+                if valid_plans:
+                    print(f"[ControlPlane] {len(valid_plans)} plans awaiting approval")
                 
                 # 6. APPROVAL
                 await self._transition_to(ControlPlaneState.APPROVAL)
+                # Fetch approved plans
+                result = await db.execute(
+                    select(ActionHistory).where(ActionHistory.status == ActionStatus.approved)
+                )
+                approved_plans = result.scalars().all()
                 
                 # 7. EXECUTE
                 await self._transition_to(ControlPlaneState.EXECUTE)
+                
+                for plan in approved_plans:
+                    # Run execution asynchronously to not block loop too long??
+                    # For MVP, run sequentially
+                    print(f"[ControlPlane] Executing approved plan {plan.id}")
+                    success = await plan_executor.execute_action(db, plan.id)
+                    if success:
+                        print(f"[ControlPlane] Plan {plan.id} executed successfully")
+                    else:
+                        print(f"[ControlPlane] Plan {plan.id} execution failed")
                 
                 # 8. VERIFY
                 await self._transition_to(ControlPlaneState.VERIFY)
@@ -91,9 +147,6 @@ class ControlPlane:
                 # 9. RECORD
                 await self._transition_to(ControlPlaneState.RECORD)
                 # NEW: Generate narratives for open incidents with placeholder narratives
-                from homelab.rag.narrative_generator import narrative_generator
-                from homelab.storage.models import Incident, IncidentNarrative
-                from sqlalchemy import select, or_
                 
                 # Find incidents with placeholder narratives
                 result = await db.execute(
