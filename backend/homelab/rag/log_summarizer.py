@@ -7,7 +7,7 @@ from sqlalchemy import select, func
 
 from homelab.storage.models import LogEntry, LogSummary
 from homelab.rag.vector_store import vector_store
-from homelab.notifications.webhook import notifier
+from homelab.notifications.router import notification_router
 
 class LogSummarizer:
     """Summarizes logs before they are purged."""
@@ -77,7 +77,7 @@ class LogSummarizer:
                 },
             )
 
-            await notifier.notify(
+            await notification_router.notify_event(
                 "digest_ready",
                 {
                     "summary_id": str(summary.id),
@@ -86,6 +86,8 @@ class LogSummarizer:
                     "period_end": end_date.isoformat(),
                     "log_count": count,
                 },
+                severity="info",
+                tags=["digest"],
             )
             
             summarized_count += count

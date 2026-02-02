@@ -1,9 +1,11 @@
 """Proxmox adapter for VM/LXC management."""
 
+import logging
 from typing import Any
 from homelab.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class ProxmoxAdapter:
@@ -24,7 +26,12 @@ class ProxmoxAdapter:
                 except:
                     pass
             
-            print(f"[ProxmoxAdapter] Initializing connection to {host}:{port} as {settings.proxmox_user}")
+            logger.info(
+                "[ProxmoxAdapter] Initializing connection to %s:%s as %s",
+                host,
+                port,
+                settings.proxmox_user,
+            )
             
             try:
                 from proxmoxer import ProxmoxAPI
@@ -43,16 +50,16 @@ class ProxmoxAdapter:
                     try:
                         self.api.nodes.get()
                         self._connected = True
-                        print("[ProxmoxAdapter] Connected to Proxmox successfully")
+                        logger.info("[ProxmoxAdapter] Connected to Proxmox successfully")
                     except Exception as e:
                         self._last_error = str(e)
-                        print(f"[ProxmoxAdapter] Connection verification failed: {e}")
+                        logger.error("[ProxmoxAdapter] Connection verification failed: %s", e)
                 else:
                     self._last_error = "Missing token name or value"
-                    print(f"[ProxmoxAdapter] {self._last_error}")
+                    logger.error("[ProxmoxAdapter] %s", self._last_error)
             except Exception as e:
                 self._last_error = str(e)
-                print(f"[ProxmoxAdapter] Initialization failed: {e}")
+                logger.error("[ProxmoxAdapter] Initialization failed: %s", e)
 
     @property
     def is_connected(self) -> bool:
@@ -74,7 +81,7 @@ class ProxmoxAdapter:
         except Exception as e:
             self._connected = False
             self._last_error = str(e)
-            print(f"[ProxmoxAdapter] Connection verification failed: {e}")
+            logger.error("[ProxmoxAdapter] Connection verification failed: %s", e)
             return False
     
     async def list_nodes(self) -> list[dict[str, Any]]:
@@ -97,7 +104,7 @@ class ProxmoxAdapter:
                 for n in nodes
             ]
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error listing nodes: {e}")
+            logger.error("[ProxmoxAdapter] Error listing nodes: %s", e)
             return []
     
     async def list_vms(self, node: str | None = None) -> list[dict[str, Any]]:
@@ -127,11 +134,11 @@ class ProxmoxAdapter:
                             "resource_ref": f"proxmox://{node_name}/qemu/{vm['vmid']}",
                         })
                 except Exception as e:
-                    print(f"[ProxmoxAdapter] Error listing VMs on {node_name}: {e}")
+                    logger.error("[ProxmoxAdapter] Error listing VMs on %s: %s", node_name, e)
             
             return vms
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error listing VMs: {e}")
+            logger.error("[ProxmoxAdapter] Error listing VMs: %s", e)
             return []
     
     async def list_lxcs(self, node: str | None = None) -> list[dict[str, Any]]:
@@ -161,11 +168,11 @@ class ProxmoxAdapter:
                             "resource_ref": f"proxmox://{node_name}/lxc/{lxc['vmid']}",
                         })
                 except Exception as e:
-                    print(f"[ProxmoxAdapter] Error listing LXCs on {node_name}: {e}")
+                    logger.error("[ProxmoxAdapter] Error listing LXCs on %s: %s", node_name, e)
             
             return lxcs
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error listing LXCs: {e}")
+            logger.error("[ProxmoxAdapter] Error listing LXCs: %s", e)
             return []
     
     async def get_resource_status(self, node: str, vmtype: str, vmid: int) -> dict[str, Any] | None:
@@ -191,7 +198,7 @@ class ProxmoxAdapter:
                 "uptime": status.get("uptime"),
             }
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error getting status for {vmtype}/{vmid}: {e}")
+            logger.error("[ProxmoxAdapter] Error getting status for %s/%s: %s", vmtype, vmid, e)
             return None
 
     async def start_resource(self, node: str, vmtype: str, vmid: int) -> bool:
@@ -208,7 +215,7 @@ class ProxmoxAdapter:
                 return False
             return True
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error starting {vmtype}/{vmid}: {e}")
+            logger.error("[ProxmoxAdapter] Error starting %s/%s: %s", vmtype, vmid, e)
             return False
 
     async def stop_resource(self, node: str, vmtype: str, vmid: int) -> bool:
@@ -225,7 +232,7 @@ class ProxmoxAdapter:
                 return False
             return True
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error stopping {vmtype}/{vmid}: {e}")
+            logger.error("[ProxmoxAdapter] Error stopping %s/%s: %s", vmtype, vmid, e)
             return False
 
     async def reboot_resource(self, node: str, vmtype: str, vmid: int) -> bool:
@@ -242,7 +249,7 @@ class ProxmoxAdapter:
                 return False
             return True
         except Exception as e:
-            print(f"[ProxmoxAdapter] Error rebooting {vmtype}/{vmid}: {e}")
+            logger.error("[ProxmoxAdapter] Error rebooting %s/%s: %s", vmtype, vmid, e)
             return False
 
 

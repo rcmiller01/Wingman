@@ -1,0 +1,9 @@
+policies:
+  - name: critical_vm_down
+    match:
+      severity: critical
+      tags: [vm, production]
+    notify:
+      - channel: discord
+      - channel: email
+    escalate_after: 15m

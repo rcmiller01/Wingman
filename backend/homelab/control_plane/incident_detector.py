@@ -14,7 +14,7 @@ from homelab.storage.models import (
     FileLogSource,
 )
 from homelab.collectors import log_collector
-from homelab.notifications.webhook import notifier
+from homelab.notifications.router import notification_router
 
 
 # Detection thresholds
@@ -298,14 +298,7 @@ class IncidentDetector:
         
         # Trigger notification
         import asyncio
-        asyncio.create_task(notifier.notify("incident_detected", {
-            "incident_id": str(incident.id),
-            "severity": severity.value,
-            "status": incident.status.value,
-            "summary": summary,
-            "affected_resources": affected_resources,
-            "detected_at": incident.detected_at.isoformat(),
-        }))
+        asyncio.create_task(notification_router.notify_incident(incident))
         
         return incident
 

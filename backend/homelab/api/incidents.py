@@ -10,7 +10,7 @@ from typing import Any
 from homelab.storage import get_db
 from homelab.storage.models import Incident, IncidentNarrative, IncidentStatus, IncidentSeverity
 from homelab.control_plane import incident_detector, narrative_generator
-from homelab.notifications.webhook import notifier
+from homelab.notifications.router import notification_router
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
@@ -179,7 +179,7 @@ async def resolve_incident(
     incident.resolved_at = datetime.utcnow()
     await db.commit()
 
-    await notifier.notify(
+    await notification_router.notify_event(
         "incident_resolved",
         {
             "incident_id": str(incident.id),
@@ -188,6 +188,8 @@ async def resolve_incident(
             "resolved_at": incident.resolved_at.isoformat(),
             "affected_resources": incident.affected_resources,
         },
+        severity=incident.severity.value,
+        tags=["incident"],
     )
     
     return {

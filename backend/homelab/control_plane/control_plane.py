@@ -19,7 +19,7 @@ from homelab.control_plane.incident_detector import incident_detector
 from homelab.control_plane.planner import planner
 from homelab.control_plane.plan_executor import plan_executor
 from homelab.control_plane.plan_validator import plan_validator
-from homelab.notifications.webhook import notifier
+from homelab.notifications.router import notification_router
 from homelab.rag.narrative_generator import narrative_generator
 from homelab.policy.policy_engine import policy_engine
 
@@ -139,12 +139,14 @@ class ControlPlane:
                 # Plans are already pending in DB effectively in TODO state
                 if valid_plans:
                     print(f"[ControlPlane] {len(valid_plans)} plans awaiting approval")
-                    await notifier.notify(
+                    await notification_router.notify_event(
                         "approval_required",
                         {
                             "pending_count": len(valid_plans),
                             "incident_ids": list({plan.incident_id for plan in valid_plans if plan.incident_id}),
                         },
+                        severity="info",
+                        tags=["approval"],
                     )
                 
                 # 6. APPROVAL

@@ -1,5 +1,6 @@
 """Narrative Generator - generates incident narratives using local LLM."""
 
+import logging
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +11,7 @@ from homelab.collectors import log_collector
 
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # Timeout for LLM calls
 LLM_TIMEOUT_SECONDS = 120
@@ -35,7 +37,7 @@ class NarrativeGenerator:
             narrative = await self._call_ollama(prompt)
             return NarrativeOutput.model_validate({"text": narrative}, strict=True).text
         except Exception as e:
-            print(f"[NarrativeGenerator] LLM call failed: {e}")
+            logger.error("[NarrativeGenerator] LLM call failed: %s", e)
             return self._fallback_narrative(incident, context)
     
     async def _build_context(

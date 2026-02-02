@@ -1,9 +1,13 @@
 """Docker adapter for container management."""
 
+import logging
 import docker
 from docker.errors import DockerException, NotFound
 from typing import Any
 from datetime import datetime, timedelta
+
+
+logger = logging.getLogger(__name__)
 
 
 class DockerAdapter:
@@ -14,7 +18,7 @@ class DockerAdapter:
             self.client = docker.from_env()
             self._connected = True
         except DockerException as e:
-            print(f"[DockerAdapter] Failed to connect: {e}")
+            logger.error("[DockerAdapter] Failed to connect: %s", e)
             self.client = None
             self._connected = False
     
@@ -31,7 +35,7 @@ class DockerAdapter:
             containers = self.client.containers.list(all=all)
             return [self._container_to_dict(c) for c in containers]
         except Exception as e:
-            print(f"[DockerAdapter] Error listing containers: {e}")
+            logger.error("[DockerAdapter] Error listing containers: %s", e)
             return []
     
     async def get_container(self, container_id: str) -> dict[str, Any] | None:
@@ -45,7 +49,7 @@ class DockerAdapter:
         except NotFound:
             return None
         except Exception as e:
-            print(f"[DockerAdapter] Error getting container {container_id}: {e}")
+            logger.error("[DockerAdapter] Error getting container %s: %s", container_id, e)
             return None
     
     async def get_logs(
@@ -88,7 +92,7 @@ class DockerAdapter:
         except NotFound:
             return []
         except Exception as e:
-            print(f"[DockerAdapter] Error fetching logs for {container_id}: {e}")
+            logger.error("[DockerAdapter] Error fetching logs for %s: %s", container_id, e)
             return []
     
     async def restart_container(self, container_id: str, timeout: int = 10) -> bool:
@@ -101,7 +105,7 @@ class DockerAdapter:
             container.restart(timeout=timeout)
             return True
         except Exception as e:
-            print(f"[DockerAdapter] Error restarting {container_id}: {e}")
+            logger.error("[DockerAdapter] Error restarting %s: %s", container_id, e)
             return False
     
     async def start_container(self, container_id: str) -> bool:
@@ -114,7 +118,7 @@ class DockerAdapter:
             container.start()
             return True
         except Exception as e:
-            print(f"[DockerAdapter] Error starting {container_id}: {e}")
+            logger.error("[DockerAdapter] Error starting %s: %s", container_id, e)
             return False
     
     async def stop_container(self, container_id: str, timeout: int = 10) -> bool:
@@ -127,7 +131,7 @@ class DockerAdapter:
             container.stop(timeout=timeout)
             return True
         except Exception as e:
-            print(f"[DockerAdapter] Error stopping {container_id}: {e}")
+            logger.error("[DockerAdapter] Error stopping %s: %s", container_id, e)
             return False
     
     def _container_to_dict(self, container) -> dict[str, Any]:

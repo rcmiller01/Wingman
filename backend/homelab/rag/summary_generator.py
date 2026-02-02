@@ -1,5 +1,6 @@
 """Summary Generator - generates log summaries for long-term storage."""
 
+import logging
 import httpx
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +13,7 @@ from homelab.llm.validators import SummaryOutput
 
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # Summary generation timeout
 LLM_TIMEOUT_SECONDS = 120
@@ -146,7 +148,7 @@ Provide a concise monthly summary (under 300 words):"""
                 return data.get("response")
                 
         except Exception as e:
-            print(f"[SummaryGenerator] LLM error: {e}")
+            logger.error("[SummaryGenerator] LLM error: %s", e)
             return None
 
 
