@@ -47,7 +47,7 @@ async def verify_guide_mode():
     print(f"[Verify] Approving plan {plan_id} via API...")
     try:
         async with httpx.AsyncClient() as client:
-            resp = await client.post(f"http://localhost:8000/plans/{plan_id}/approve")
+            resp = await client.post(f"http://localhost:8000/api/plans/{plan_id}/approve")
             if resp.status_code == 200:
                 print("[Verify] Plan Approved successfully.")
             else:

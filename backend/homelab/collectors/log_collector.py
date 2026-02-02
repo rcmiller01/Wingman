@@ -5,7 +5,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 
-from homelab.storage.models import LogEntry, FileLogSource
+from homelab.storage.models import LogEntry, FileLogSource, Fact
 from homelab.adapters import docker_adapter
 
 
@@ -161,6 +161,19 @@ class LogEntryCollector:
         
         error_patterns = []
         error_keywords = ["error", "exception", "failed", "fatal", "panic", "crash"]
+
+        since = datetime.utcnow() - timedelta(hours=hours)
+        existing_facts = await db.execute(
+            select(Fact)
+            .where(Fact.resource_ref == resource_ref)
+            .where(Fact.fact_type == "log_error_signature")
+            .where(Fact.timestamp >= since)
+        )
+        known_log_ids = {
+            fact.value.get("log_id")
+            for fact in existing_facts.scalars().all()
+            if isinstance(fact.value, dict)
+        }
         
         for log in logs:
             content_lower = log.content.lower()
@@ -173,6 +186,21 @@ class LogEntryCollector:
                         "keyword": keyword,
                         "source": log.log_source,
                     })
+                    if log.id not in known_log_ids:
+                        db.add(
+                            Fact(
+                                resource_ref=resource_ref,
+                                fact_type="log_error_signature",
+                                value={
+                                    "log_id": log.id,
+                                    "keyword": keyword,
+                                    "source": log.log_source,
+                                    "content": log.content[:200],
+                                },
+                                source="logs",
+                                timestamp=log.timestamp,
+                            )
+                        )
                     break  # Only match first keyword per log
         
         return error_patterns
