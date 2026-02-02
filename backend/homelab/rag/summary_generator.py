@@ -8,6 +8,7 @@ from sqlalchemy import select
 from homelab.config import get_settings
 from homelab.storage.models import LogEntry
 from homelab.rag.rag_indexer import rag_indexer
+from homelab.llm.validators import SummaryOutput
 
 
 settings = get_settings()
@@ -67,6 +68,8 @@ LogEntrys:
 Provide a concise Markdown summary (under 500 words):"""
         
         summary = await self._call_llm(prompt)
+        if summary:
+            summary = SummaryOutput.model_validate({"text": summary}, strict=True).text
         
         if summary:
             # Index into RAG
@@ -121,7 +124,10 @@ Daily Summaries:
 
 Provide a concise monthly summary (under 300 words):"""
         
-        return await self._call_llm(prompt)
+        summary = await self._call_llm(prompt)
+        if summary:
+            return SummaryOutput.model_validate({"text": summary}, strict=True).text
+        return summary
     
     async def _call_llm(self, prompt: str) -> str | None:
         """Call Ollama for generation."""

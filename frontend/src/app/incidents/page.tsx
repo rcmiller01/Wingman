@@ -22,7 +22,8 @@ export default function IncidentsPage() {
         fetch('/api/incidents?status=all')
             .then(res => res.json())
             .then(data => {
-                setIncidents(data.data || []);
+                const mapped = (data.incidents || []).map(mapIncidentFromApi);
+                setIncidents(mapped);
                 setLoading(false);
             })
             .catch(err => {
@@ -81,6 +82,21 @@ export default function IncidentsPage() {
             )}
         </div>
     );
+}
+
+function mapIncidentFromApi(payload: any): Incident {
+    return {
+        id: payload.id,
+        severity: payload.severity,
+        status: payload.status,
+        affectedResources: payload.affected_resources || [],
+        detectedAt: payload.detected_at,
+        narrative: payload.narrative
+            ? {
+                  narrativeText: payload.narrative.narrative_text,
+              }
+            : undefined,
+    };
 }
 
 function extractTitle(narrative?: string) {
