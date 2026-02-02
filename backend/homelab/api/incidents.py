@@ -10,6 +10,7 @@ from typing import Any
 from homelab.storage import get_db
 from homelab.storage.models import Incident, IncidentNarrative, IncidentStatus, IncidentSeverity
 from homelab.control_plane import incident_detector, narrative_generator
+from homelab.notifications.webhook import notifier
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
@@ -49,9 +50,9 @@ async def list_incidents(
     db: AsyncSession = Depends(get_db),
 ):
     """List incidents, optionally filtered."""
-    query = select(Incident)
-    
-    if status:
+    query = select(Incident, IncidentNarrative).outerjoin(IncidentNarrative)
+
+    if status and status != "all":
         try:
             status_enum = IncidentStatus[status]
             query = query.where(Incident.status == status_enum)
@@ -68,21 +69,24 @@ async def list_incidents(
     query = query.order_by(Incident.detected_at.desc()).limit(limit)
     
     result = await db.execute(query)
-    incidents = list(result.scalars().all())
+    incidents = list(result.all())
     
     return {
         "count": len(incidents),
         "incidents": [
             {
-                "id": str(i.id),
-                "severity": i.severity.value,
-                "status": i.status.value,
-                "affected_resources": i.affected_resources,
-                "symptoms": i.symptoms,
-                "detected_at": i.detected_at,
-                "resolved_at": i.resolved_at,
+                "id": str(incident.id),
+                "severity": incident.severity.value,
+                "status": incident.status.value,
+                "affected_resources": incident.affected_resources,
+                "symptoms": incident.symptoms,
+                "detected_at": incident.detected_at,
+                "resolved_at": incident.resolved_at,
+                "narrative": {
+                    "narrative_text": narrative.narrative_text,
+                } if narrative else None,
             }
-            for i in incidents
+            for incident, narrative in incidents
         ],
     }
 
@@ -174,6 +178,17 @@ async def resolve_incident(
     incident.status = IncidentStatus.resolved
     incident.resolved_at = datetime.utcnow()
     await db.commit()
+
+    await notifier.notify(
+        "incident_resolved",
+        {
+            "incident_id": str(incident.id),
+            "severity": incident.severity.value,
+            "status": incident.status.value,
+            "resolved_at": incident.resolved_at.isoformat(),
+            "affected_resources": incident.affected_resources,
+        },
+    )
     
     return {
         "incident_id": incident_id,

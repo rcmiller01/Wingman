@@ -2,7 +2,8 @@
 
 from typing import Any
 from homelab.adapters import docker_adapter, proxmox_adapter
-from homelab.control_plane.plan_proposal import PlanStep, ActionType
+from homelab.control_plane.plan_proposal import PlanStep
+from homelab.storage.models import ActionTemplate
 
 class ExecutorRouter:
     """Routes execution commands to specific infrastructure adapters."""
@@ -13,12 +14,13 @@ class ExecutorRouter:
         target = step.target
         
         try:
-            if action == ActionType.restart_container:
-                return await self._handle_docker_restart(target)
-            elif action in [ActionType.restart_vm, ActionType.restart_lxc]:
-                return await self._handle_proxmox_restart(target)
-            else:
-                return {"success": False, "error": f"Unsupported action type: {action}"}
+            if action == ActionTemplate.restart_resource:
+                if target.startswith("docker://"):
+                    return await self._handle_docker_restart(target)
+                if target.startswith("proxmox://"):
+                    return await self._handle_proxmox_restart(target)
+                return {"success": False, "error": f"Unsupported restart target: {target}"}
+            return {"success": False, "error": f"Unsupported action type: {action}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 

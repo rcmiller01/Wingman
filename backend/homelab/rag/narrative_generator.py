@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from homelab.config import get_settings
 from homelab.storage.models import Incident, IncidentNarrative, Fact, LogEntry
+from homelab.llm.validators import NarrativeOutput
 
 settings = get_settings()
 
@@ -65,6 +66,7 @@ class NarrativeGenerator:
         
         # 6. Call LLM
         narrative_text = await self._call_ollama(prompt)
+        narrative_text = NarrativeOutput.model_validate({"text": narrative_text}, strict=True).text
         
         # 7. Create/Update IncidentNarrative
         # Check if narrative already exists

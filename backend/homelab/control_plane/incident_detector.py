@@ -5,7 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import Any
 
-from homelab.storage.models import Fact, Incident, IncidentNarrative, IncidentSeverity, IncidentStatus
+from homelab.storage.models import (
+    Fact,
+    Incident,
+    IncidentNarrative,
+    IncidentSeverity,
+    IncidentStatus,
+    FileLogSource,
+)
 from homelab.collectors import log_collector
 from homelab.notifications.webhook import notifier
 
@@ -135,6 +142,39 @@ class IncidentDetector:
                     "error_count": len(errors),
                     "keywords": list(keywords),
                 })
+
+        file_sources = await db.execute(
+            select(FileLogSource).where(FileLogSource.enabled.is_(True))
+        )
+        for source in file_sources.scalars().all():
+            resource_ref = source.resource_ref
+            existing = await self._get_open_incident(db, resource_ref)
+            if existing:
+                continue
+
+            errors = await log_collector.extract_error_signatures(
+                db, resource_ref, hours=ERROR_WINDOW_HOURS
+            )
+            if len(errors) >= ERROR_REPEAT_THRESHOLD:
+                keywords = set(e["keyword"] for e in errors)
+                incident = await self._create_incident(
+                    db,
+                    severity=IncidentSeverity.medium,
+                    affected_resources=[resource_ref],
+                    symptoms=[
+                        f"File log source {source.name} has {len(errors)} errors in the last hour",
+                        f"Error types: {', '.join(keywords)}",
+                        f"Sample: {errors[0]['content'][:100]}...",
+                    ],
+                    summary=f"Repeated file log errors in {source.name}",
+                )
+                incidents.append({
+                    "incident_id": incident.id,
+                    "type": "file_error_pattern",
+                    "resource": resource_ref,
+                    "error_count": len(errors),
+                    "keywords": list(keywords),
+                })
         
         return incidents
     
@@ -190,11 +230,13 @@ class IncidentDetector:
         
         # Trigger notification
         import asyncio
-        asyncio.create_task(notifier.notify("incident.created", {
-            "incident_id": incident.id,
+        asyncio.create_task(notifier.notify("incident_detected", {
+            "incident_id": str(incident.id),
             "severity": severity.value,
+            "status": incident.status.value,
             "summary": summary,
-            "affected_resources": affected_resources
+            "affected_resources": affected_resources,
+            "detected_at": incident.detected_at.isoformat(),
         }))
         
         return incident

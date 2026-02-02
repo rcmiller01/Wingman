@@ -5,19 +5,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
 
-class ActionType(str, Enum):
-    """Types of actions that can be proposed."""
-    restart_container = "restart_container"
-    start_container = "start_container"
-    stop_container = "stop_container"
-    scale_service = "scale_service"
-    restart_vm = "restart_vm"
-    start_vm = "start_vm"
-    stop_vm = "stop_vm"
-    restart_lxc = "restart_lxc"
-    start_lxc = "start_lxc"
-    stop_lxc = "stop_lxc"
+from homelab.storage.models import ActionTemplate
 
 
 class PlanStatus(str, Enum):
@@ -34,7 +24,7 @@ class PlanStatus(str, Enum):
 class PlanStep:
     """A single step in a plan."""
     order: int
-    action: ActionType
+    action: ActionTemplate
     target: str  # resource_ref
     params: dict[str, Any] = field(default_factory=dict)
     description: str = ""
@@ -89,3 +79,26 @@ class PlanProposal:
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
             "error": self.error,
         }
+
+
+class PlanStepSchema(BaseModel):
+    """Schema for validating plan steps from LLM output."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    order: int = Field(..., ge=1)
+    action: ActionTemplate
+    target: str = Field(..., min_length=1)
+    params: dict[str, Any] = Field(default_factory=dict)
+    description: str = ""
+    verification: str | None = None
+
+
+class PlanProposalSchema(BaseModel):
+    """Schema for validating plan proposals from LLM output."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(..., min_length=1)
+    description: str = Field(default="", max_length=4000)
+    steps: list[PlanStepSchema] = Field(default_factory=list)

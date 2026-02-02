@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from homelab.config import get_settings
 from homelab.storage.models import Incident, IncidentNarrative
+from homelab.llm.validators import NarrativeOutput
 from homelab.collectors import log_collector
 
 
@@ -32,7 +33,7 @@ class NarrativeGenerator:
         # Call local LLM
         try:
             narrative = await self._call_ollama(prompt)
-            return narrative
+            return NarrativeOutput.model_validate({"text": narrative}, strict=True).text
         except Exception as e:
             print(f"[NarrativeGenerator] LLM call failed: {e}")
             return self._fallback_narrative(incident, context)

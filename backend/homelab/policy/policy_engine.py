@@ -1,15 +1,16 @@
 """Policy engine for Guide Mode validation."""
 
 from typing import Any
-from homelab.control_plane.plan_proposal import PlanProposal, PlanStep, ActionType
+from homelab.control_plane.plan_proposal import PlanProposal, PlanStep
+from homelab.storage.models import ActionTemplate
 
 
 # Safe actions that can be proposed
 ALLOWED_ACTIONS = {
-    ActionType.restart_container,
-    ActionType.start_container,
-    ActionType.stop_container,
-    # Future: ActionType.restart_vm, etc.
+    ActionTemplate.restart_resource,
+    ActionTemplate.start_resource,
+    ActionTemplate.stop_resource,
+    # Future: extend to VM or LXC-specific templates
 }
 
 # Maximum steps in a plan
@@ -17,8 +18,7 @@ MAX_PLAN_STEPS = 10
 
 # Actions that require explicit confirmation
 DANGEROUS_ACTIONS = {
-    ActionType.stop_container,
-    ActionType.stop_vm,
+    ActionTemplate.stop_resource,
 }
 
 
