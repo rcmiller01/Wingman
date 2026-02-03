@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { getApiUrl } from '@/utils/api';
 
 interface Incident {
     id: string;
@@ -18,10 +19,21 @@ interface Incident {
     };
 }
 
+interface SkillSuggestion {
+    id: string;
+    title: string;
+    tier: number;
+    category: string;
+    risk: string;
+    short_description: string;
+}
+
 export default function IncidentDetailPage() {
     const { id } = useParams();
     const [incident, setIncident] = useState<Incident | null>(null);
     const [loading, setLoading] = useState(true);
+    const [suggestions, setSuggestions] = useState<SkillSuggestion[]>([]);
+    const [suggesting, setSuggesting] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -40,6 +52,30 @@ export default function IncidentDetailPage() {
                 setLoading(false);
             });
     }, [id]);
+
+    useEffect(() => {
+        if (!incident) return;
+        const context = deriveSkillContext(incident);
+        if (!context.subsystem && !context.signature && !context.resource_type) return;
+        setSuggesting(true);
+        fetch(getApiUrl('/skills/suggest'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(context),
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch suggestions');
+                return res.json();
+            })
+            .then(data => {
+                setSuggestions(data.skills || []);
+                setSuggesting(false);
+            })
+            .catch(err => {
+                console.error(err);
+                setSuggesting(false);
+            });
+    }, [incident]);
 
     if (loading) {
         return (
@@ -122,6 +158,44 @@ export default function IncidentDetailPage() {
                 )}
             </div>
 
+            <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-white">Suggested Skills</h3>
+                    <Link href="/skills" className="text-copilot-300 hover:text-copilot-200 text-sm">
+                        Browse library →
+                    </Link>
+                </div>
+                {suggesting && <p className="text-slate-400 text-sm">Finding relevant skills…</p>}
+                {!suggesting && suggestions.length === 0 && (
+                    <p className="text-slate-400 text-sm">No matching skills yet. Try the Skills Library.</p>
+                )}
+                <div className="grid gap-3">
+                    {suggestions.map(skill => (
+                        <div key={skill.id} className="border border-slate-700/40 rounded-lg p-4 bg-slate-900/40">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <h4 className="text-white font-semibold">{skill.title}</h4>
+                                    <p className="text-slate-400 text-sm mt-1">{skill.short_description}</p>
+                                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500 uppercase tracking-wider">
+                                        <span>{skill.category}</span>
+                                        <span>•</span>
+                                        <span>{skill.risk}</span>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Link href={`/skills?selected=${skill.id}`} className="text-copilot-200 text-xs border border-copilot-500/40 px-3 py-1 rounded-lg">
+                                        View
+                                    </Link>
+                                    <Link href={`/chat?command=${encodeURIComponent(`run skill ${skill.id}`)}`} className="text-copilot-200 text-xs border border-copilot-500/40 px-3 py-1 rounded-lg">
+                                        Run
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             {/* Affected Resources */}
             <div>
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
@@ -157,6 +231,17 @@ function mapIncidentDetail(payload: any): Incident | null {
               }
             : undefined,
     };
+}
+
+function deriveSkillContext(incident: Incident): { subsystem?: string; signature?: string; resource_type?: string } {
+    const primaryResource = incident.affectedResources[0] || '';
+    if (primaryResource.startsWith('proxmox://')) {
+        return { subsystem: 'proxmox', resource_type: 'node' };
+    }
+    if (primaryResource.startsWith('docker://')) {
+        return { subsystem: 'docker', resource_type: 'container' };
+    }
+    return {};
 }
 
 function ResourceLink({ refId }: { refId: string }) {
