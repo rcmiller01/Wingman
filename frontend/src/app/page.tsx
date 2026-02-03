@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/api-config';
+import { getApiUrl } from '@/utils/api';
 
 interface HealthStatus {
     status: string;
@@ -16,7 +16,7 @@ export default function Dashboard() {
     useEffect(() => {
         async function fetchHealth() {
             try {
-                const res = await fetch(getApiUrl('/api/health/ready'));
+                const res = await fetch(getApiUrl('/health/ready'));
                 const data = await res.json();
                 setHealth(data);
             } catch (err) {

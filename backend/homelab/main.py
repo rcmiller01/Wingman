@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
     if existing_dim:
         if is_consistent:
             llm_manager.prelock_from_qdrant(existing_dim)
+            rag_indexer.ensure_collections()
         else:
             print(
                 f"[Copilot] WARNING: Qdrant collections have INCONSISTENT dimensions! "
@@ -47,6 +48,7 @@ async def lifespan(app: FastAPI):
             llm_manager.set_inconsistent_state(True)
     else:
         print("[Copilot] No existing Qdrant collections found, dimension will lock on first embedding")
+        rag_indexer.ensure_collections()
 
     start_scheduler()
 

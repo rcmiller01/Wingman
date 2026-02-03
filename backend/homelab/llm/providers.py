@@ -13,6 +13,7 @@ from typing import Any
 from enum import Enum
 
 from homelab.config import get_settings
+from homelab.llm.prompt_sanitizer import sanitize_prompt_for_cloud
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -464,7 +465,12 @@ class LLMManager:
         config = self._current_settings[function]
         provider = self._get_provider(config["provider"])
         model = config["model"] or provider.get_default_model(function)
-        return await provider.generate(prompt, model)
+        prompt_to_send = prompt
+        if config["provider"] == LLMProvider.OPENROUTER:
+            prompt_to_send = sanitize_prompt_for_cloud(prompt)
+            if prompt_to_send != prompt:
+                logger.info("[LLMManager] Sanitized prompt for cloud provider to remove raw logs.")
+        return await provider.generate(prompt_to_send, model)
 
     async def embed(self, text: str) -> list[float] | None:
         """Generate embedding using configured provider.

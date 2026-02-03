@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getApiUrl } from '@/lib/api-config';
+import { getApiUrl } from '@/utils/api';
 
 interface DockerContainer {
     id: string;
@@ -47,7 +47,7 @@ export default function InventoryPage() {
     useEffect(() => {
         async function fetchInventory() {
             try {
-                const res = await fetch(getApiUrl('/api/inventory/all'));
+                const res = await fetch(getApiUrl('/inventory/all'));
                 const data = await res.json();
                 setInventory(data);
                 setError(null);
