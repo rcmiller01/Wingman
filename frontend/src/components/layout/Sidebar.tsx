@@ -27,6 +27,8 @@ export function Sidebar() {
                 <NavLink href="/inventory" icon="🖥️" label="Inventory" active={isActive('/inventory')} />
                 <NavLink href="/incidents" icon="🚨" label="Incidents" active={isActive('/incidents')} />
                 <NavLink href="/actions" icon="📋" label="Actions" active={isActive('/actions')} />
+                <NavLink href="/skills" icon="🧰" label="Skills" active={isActive('/skills')} />
+                <NavLink href="/chat" icon="💬" label="Chat" active={isActive('/chat')} />
                 <NavLink href="/settings" icon="⚙️" label="Settings" active={isActive('/settings')} />
             </nav>
 

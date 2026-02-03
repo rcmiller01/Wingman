@@ -52,6 +52,22 @@ Homelab Copilot is a privacy-forward infrastructure copilot for homelabs. It obs
 - **Destructive actions require explicit opt-in flags.**
 - **Cloud model boundary:** no raw logs to cloud models, ever.
 
+## Skills System (Tier 1 & 2)
+
+Wingman ships with a static skills library for Tier 1 and Tier 2 runbooks. Skills live under `skills/` and are discoverable in the UI and chat commands. Tier 3 is reserved for future execution support.
+
+### Creating a Skill
+
+1. Copy the template at `skills/templates/skill-template.md`.
+2. Fill out the YAML frontmatter and required headings.
+3. Add the skill to `skills/skills-library.md`.
+
+### Using Skills
+
+- **Library:** browse and filter skills at `/skills`.
+- **Incident suggestions:** incident detail pages surface relevant skills.
+- **Chat:** use `list skills`, `show skill <id>`, or `run skill <id>`.
+
 ## Quick Start
 
 ### Prerequisites
