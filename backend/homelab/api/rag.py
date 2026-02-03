@@ -3,6 +3,7 @@
 import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
@@ -75,6 +76,27 @@ async def trigger_log_summarization(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/health")
+async def check_health():
+    """Check RAG system health."""
+    try:
+        # Check if embeddings are blocked
+        if llm_manager.is_embedding_blocked():
+            settings = get_settings()
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "blocked",
+                    "reason": "qdrant_collections_inconsistent",
+                    "recovery": "POST /api/rag/collections/recreate?confirm=true"
+                },
+                headers={"Retry-After": str(settings.rag_retry_after_seconds)},
+            )
+        return {"status": "ok"}
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/collections")

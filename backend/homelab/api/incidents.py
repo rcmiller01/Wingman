@@ -12,6 +12,7 @@ from homelab.storage.models import Incident, IncidentNarrative, IncidentStatus, 
 from homelab.control_plane import incident_detector
 from homelab.rag.narrative_generator import narrative_generator
 from homelab.notifications.router import notification_router
+from homelab.llm.providers import EmbeddingBlockedError
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 
@@ -148,7 +149,21 @@ async def analyze_incident(
         raise HTTPException(404, "Incident not found")
     
     # Generate narrative (handles DB persistence internaly)
-    narrative = await narrative_generator.generate_narrative(db, incident.id)
+    try:
+        narrative = await narrative_generator.generate_narrative(db, incident.id)
+    except EmbeddingBlockedError as e:
+        from homelab.config import get_settings
+        settings = get_settings()
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "embedding_blocked",
+                "reason": "qdrant_collections_inconsistent",
+                "message": str(e),
+                "recovery": "POST /api/rag/collections/recreate?confirm=true"
+            },
+            headers={"Retry-After": str(settings.rag_retry_after_seconds)},
+        )
     
     return {
         "incident_id": incident_id,
