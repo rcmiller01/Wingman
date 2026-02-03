@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen2.5:7b"
     
     # Cloud LLM (optional)
+    rag_retry_after_seconds: int = 60
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     openrouter_api_key: str | None = None

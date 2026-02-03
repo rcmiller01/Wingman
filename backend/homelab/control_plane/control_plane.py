@@ -30,6 +30,7 @@ from homelab.control_plane.plan_proposal import validate_plan_proposal
 from homelab.notifications.router import notification_router
 from homelab.rag.narrative_generator import narrative_generator
 from homelab.policy.policy_engine import policy_engine
+from homelab.llm.providers import EmbeddingBlockedError
 
 # Setup logger
 logger = logging.getLogger("control_plane")
@@ -54,6 +55,7 @@ class ControlPlane:
         self.current_state = ControlPlaneState.OBSERVE
         self.last_run = None
         self.last_summarization = None
+        self.last_rag_error_log = None
     
     async def run_loop(self):
         """Execute one full iteration of the control plane loop."""
@@ -250,33 +252,42 @@ class ControlPlane:
                 # 9. RECORD
                 await self._transition_to(ControlPlaneState.RECORD)
                 
-                # A. Summarize expiring logs (Long-term memory)
-                # Only run every hour to preserve resources
-                should_summarize = False
-                now = datetime.utcnow()
-                if not self.last_summarization or (now - self.last_summarization).total_seconds() > 3600:
-                    should_summarize = True
-                
-                if should_summarize:
-                    print("[ControlPlane] Running hourly log summarization and analysis...")
-                    from homelab.rag.log_summarizer import log_summarizer
-                    await log_summarizer.summarize_expiring_logs(db, retention_days=90)
-                
-                    # B. Generate narratives for open incidents with placeholder narratives
+                try:
+                    # A. Summarize expiring logs (Long-term memory)
+                    # Only run every hour to preserve resources
+                    should_summarize = False
+                    now = datetime.utcnow()
+                    if not self.last_summarization or (now - self.last_summarization).total_seconds() > 3600:
+                        should_summarize = True
                     
-                    # Find incidents with placeholder narratives
-                    result = await db.execute(
-                        select(Incident)
-                        .join(IncidentNarrative)
-                        .where(IncidentNarrative.narrative_text.contains("Analysis pending..."))
-                    )
-                    incidents_needing_analysis = result.scalars().all()
+                    if should_summarize:
+                        print("[ControlPlane] Running hourly log summarization and analysis...")
+                        from homelab.rag.log_summarizer import log_summarizer
+                        await log_summarizer.summarize_expiring_logs(db, retention_days=90)
                     
-                    for incident in incidents_needing_analysis:
-                        print(f"[ControlPlane] Generating analysis for incident {incident.id}")
-                        await narrative_generator.generate_narrative(db, incident.id)
+                        # B. Generate narratives for open incidents with placeholder narratives
                         
-                    self.last_summarization = now
+                        # Find incidents with placeholder narratives
+                        result = await db.execute(
+                            select(Incident)
+                            .join(IncidentNarrative)
+                            .where(IncidentNarrative.narrative_text.contains("Analysis pending..."))
+                        )
+                        incidents_needing_analysis = result.scalars().all()
+                        
+                        for incident in incidents_needing_analysis:
+                            print(f"[ControlPlane] Generating analysis for incident {incident.id}")
+                            await narrative_generator.generate_narrative(db, incident.id)
+                            
+                        self.last_summarization = now
+                
+                except EmbeddingBlockedError:
+                    # Rate-limited logging for RAG blocks
+                    now = datetime.utcnow()
+                    if not self.last_rag_error_log or (now - self.last_rag_error_log).total_seconds() > 300: # 5 minutes
+                        print(f"[ControlPlane] WARNING: RAG blocked due to consistent state. Background tasks paused.")
+                        self.last_rag_error_log = now
+                    # Else: suppress log spam
                 
                 await db.commit()
                 

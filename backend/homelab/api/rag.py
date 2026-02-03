@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from homelab.storage.database import get_db
+from homelab.config import get_settings
 from homelab.rag.rag_indexer import rag_indexer
 from homelab.rag.log_summarizer import log_summarizer
 from homelab.llm.providers import llm_manager, EmbeddingBlockedError
@@ -36,10 +37,16 @@ async def search_rag(request: SearchRequest):
             },
         }
     except EmbeddingBlockedError as e:
+        settings = get_settings()
         raise HTTPException(
             status_code=503,
-            detail=str(e),
-            headers={"Retry-After": "60"},
+            detail={
+                "error": "embedding_blocked",
+                "reason": "qdrant_collections_inconsistent",
+                "message": str(e),
+                "recovery": "POST /api/rag/collections/recreate?confirm=true"
+            },
+            headers={"Retry-After": str(settings.rag_retry_after_seconds)},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -55,10 +62,16 @@ async def trigger_log_summarization(
         count = await log_summarizer.summarize_expiring_logs(db, retention_days=request.retention_days)
         return {"message": "Summarization complete", "summarized_logs_count": count}
     except EmbeddingBlockedError as e:
+        settings = get_settings()
         raise HTTPException(
             status_code=503,
-            detail=str(e),
-            headers={"Retry-After": "60"},
+            detail={
+                "error": "embedding_blocked",
+                "reason": "qdrant_collections_inconsistent",
+                "message": str(e),
+                "recovery": "POST /api/rag/collections/recreate?confirm=true"
+            },
+            headers={"Retry-After": str(settings.rag_retry_after_seconds)},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
