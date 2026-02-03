@@ -6,7 +6,7 @@ States: OBSERVE -> ASSESS -> PLAN -> VALIDATE -> TODO -> APPROVAL -> EXECUTE -> 
 
 import asyncio
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timedelta
 import logging
 import time
 
@@ -100,6 +100,7 @@ class ControlPlane:
                         continue
 
                     proposal = await planner.propose_for_incident(db, incident)
+                    is_schema_valid, schema_errors = validate_plan_proposal(proposal)
                     if not is_schema_valid:
                         print(f"[ControlPlane] Plan rejected by schema validation: {schema_errors}")
                         continue
