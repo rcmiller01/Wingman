@@ -1,65 +1,49 @@
+# Copy this file to create a new skill; update skills-library.md.
 ---
-id: example-skill-id
-title: Example Skill Title
+id: example.skill.id.v1
+title: "Example Skill Title"
 tier: 1
-category: general
+category: example
 risk: safe
-short_description: One-line summary of the skill.
-version: 1.0
+short_description: "One-sentence summary of what this skill does."
 applies_to:
-  subsystems: [general]
-  signatures: [example.signature]
-  resource_types: [service]
-inputs:
-  - name: target_name
-    type: string
-    required: true
-    description: Name of the target system or resource.
-  - name: api_endpoint
-    type: string
-    required: false
-    description: Optional API endpoint override.
-    default: https://example.local
-outputs:
-  - plan
-  - commands
-  - tofu
+  subsystems:
+    - example_subsystem
+  signatures:
+    - example_signature
+  resource_types:
+    - host
 ---
 
-## Purpose
-Explain what this skill accomplishes.
+# Purpose
+Explain the goal of the skill in 1–3 sentences.
 
-## When to Use
-Describe the situations or symptoms that warrant running this skill.
+# When to Use
+List the symptoms, alerts, or scenarios where this applies.
 
-## Inputs
-List the inputs and how they affect the plan.
+# Inputs
+- `{{example_input}}` (string): Describe the input.
 
-## Preconditions
-State required access, permissions, or data prerequisites.
+# Preconditions
+- State required access, roles, or environment assumptions.
 
-## Plan
-Provide a step-by-step plan (non-executable) for the operator.
+# Plan
+1. Step-by-step checklist (no execution).
+2. Prefer read-only checks.
 
-## Commands
+# Commands
+> Copy/paste as needed. Do not run automatically.
+
 ```bash
-# Example command placeholder
-example-cli status --target {{target_name}}
+# Example read-only command
+examplectl status --node {{example_input}}
 ```
 
-## Validation
-Explain how to verify the outcome.
+# Validation
+- Describe what “healthy” or “expected” looks like.
 
-## Rollback
-Describe how to back out changes if needed.
+# Rollback
+- Not applicable (read-only steps), or list manual rollback steps.
 
-## Notes
-Add any tips or references.
-
-## OpenTofu
-```hcl
-# Optional OpenTofu snippet
-# resource "example" "sample" {
-#   name = "{{target_name}}"
-# }
-```
+# Notes
+- Include caveats, links, or escalation guidance.
