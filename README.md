@@ -8,11 +8,13 @@
 
 Homelab Copilot is a privacy-forward infrastructure copilot for homelabs. It observes Proxmox and container infrastructure, synthesizes incident narratives, and proposes remediation steps via a policy-enforced control plane—while keeping raw logs private.
 
-### Key Principles
+### Design Principles
 
-- **Cloud-first reasoning** via user API keys; **local fallback** for always-on classification/summarization
-- **No raw logs sent to cloud models** — only distilled summaries and RAG context
-- **No autonomous destructive actions** — Guide/Assist modes require user approval
+- **Wingman is a hub, not a metrics warehouse** — show indicators and deep links; don’t replicate Grafana.
+- **Event-driven first** — Proxmox tasks/webhooks over polling sweeps wherever possible.
+- **Summaries over raw logs** — raw logs are opt-in and local-only; summaries power RAG and the UI.
+- **Back-pressure is a feature** — `503` + `Retry-After` is expected when RAG is blocked.
+- **Cloud-first reasoning** via user API keys; **local fallback** for always-on classification/summarization.
 
 ### Architecture at a Glance
 
@@ -29,6 +31,26 @@ Homelab Copilot is a privacy-forward infrastructure copilot for homelabs. It obs
 4. **Persistent Stores**
    - PostgreSQL for facts, actions, incidents, and policy state.
    - Qdrant for RAG indexing (incident narratives and log summaries).
+
+### Scaling & Performance
+
+**Defaults (documented, not necessarily enforced yet):**
+- Max resources per page (pagination).
+- Log retention (days).
+- Summary retention (days).
+- Incident creation rate throttling.
+
+**What to do when you grow:**
+- Move Postgres to SSD-backed storage.
+- Enable Prometheus remote write if needed.
+- Increase worker count and CPU.
+- Split “collector” and “api” containers (future).
+
+### Security Model
+
+- **No autonomous execution by default.**
+- **Destructive actions require explicit opt-in flags.**
+- **Cloud model boundary:** no raw logs to cloud models, ever.
 
 ## Quick Start
 
