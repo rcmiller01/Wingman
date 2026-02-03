@@ -3,7 +3,13 @@
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from homelab.llm.providers import llm_manager, LLMProvider, LLMFunction
+from homelab.llm.providers import (
+    llm_manager,
+    LLMProvider,
+    LLMFunction,
+    EmbeddingDimensionError,
+    CloudLLMDisabledError,
+)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -12,12 +18,16 @@ class LLMSettingsResponse(BaseModel):
     """Current LLM settings."""
     chat: dict
     embedding: dict
+    embedding_dimension: int
+    embedding_locked: bool
+    cloud_allowed: bool
 
 
 class LLMSettingsUpdate(BaseModel):
     """Update LLM settings for a function."""
     provider: str
     model: str | None = None
+    force_dimension_change: bool = False
 
 
 class ModelInfo(BaseModel):
@@ -46,6 +56,9 @@ async def get_llm_settings() -> LLMSettingsResponse:
     return LLMSettingsResponse(
         chat=settings["chat"],
         embedding=settings["embedding"],
+        embedding_dimension=settings["embedding_dimension"],
+        embedding_locked=settings["embedding_locked"],
+        cloud_allowed=settings["cloud_allowed"],
     )
 
 
@@ -65,13 +78,27 @@ async def update_llm_settings(
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid provider: {update.provider}")
 
-    llm_manager.set_settings(func, provider, update.model)
+    try:
+        result = llm_manager.set_settings(
+            func,
+            provider,
+            update.model,
+            force_dimension_change=update.force_dimension_change,
+        )
+    except CloudLLMDisabledError as e:
+        raise HTTPException(
+            status_code=403,
+            detail=str(e),
+        )
+    except EmbeddingDimensionError as e:
+        raise HTTPException(
+            status_code=409,  # Conflict
+            detail=str(e),
+        )
 
     return {
         "message": f"Updated {function} settings",
-        "function": function,
-        "provider": update.provider,
-        "model": update.model,
+        **result,
     }
 
 

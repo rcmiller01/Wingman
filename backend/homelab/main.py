@@ -17,6 +17,8 @@ from homelab.api.rag import router as rag_router
 from homelab.api.todos import router as todos_router
 from homelab.api.settings import router as settings_router
 from homelab.scheduler import start_scheduler, stop_scheduler
+from homelab.rag.rag_indexer import rag_indexer
+from homelab.llm.providers import llm_manager
 
 
 configure_logging()
@@ -30,10 +32,26 @@ async def lifespan(app: FastAPI):
     print("[Copilot] Starting Homelab Copilot backend...")
     await init_db()
     print("[Copilot] Database initialized")
+
+    # Pre-lock embedding dimension from existing Qdrant collections
+    existing_dim, is_consistent = rag_indexer.get_existing_dimension()
+    if existing_dim:
+        if is_consistent:
+            llm_manager.prelock_from_qdrant(existing_dim)
+        else:
+            print(
+                f"[Copilot] WARNING: Qdrant collections have INCONSISTENT dimensions! "
+                f"Embedding/indexing will be blocked until resolved. "
+                f"Use POST /api/rag/collections/recreate to fix."
+            )
+            llm_manager.set_inconsistent_state(True)
+    else:
+        print("[Copilot] No existing Qdrant collections found, dimension will lock on first embedding")
+
     start_scheduler()
-    
+
     yield
-    
+
     # Shutdown
     stop_scheduler()
     print("[Copilot] Shutting down...")

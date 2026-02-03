@@ -31,12 +31,33 @@ interface LLMSettings {
         provider: string;
         model: string;
     };
+    embedding_dimension: number;
+    embedding_locked: boolean;
+    cloud_allowed: boolean;
+}
+
+interface CollectionInfo {
+    name: string;
+    vector_size: number | null;
+    points_count: number;
+    exists: boolean;
+}
+
+interface QdrantInfo {
+    collections: CollectionInfo[];
+    consistent: boolean;
+    dimensions: number[];
+    target_dimension: number;
+    dimension_locked: boolean;
+    embedding_blocked: boolean;
+    error?: string;
 }
 
 export default function SettingsPage() {
     const [providers, setProviders] = useState<Provider[]>([]);
     const [settings, setSettings] = useState<LLMSettings | null>(null);
     const [models, setModels] = useState<{ [provider: string]: Model[] }>({});
+    const [qdrantInfo, setQdrantInfo] = useState<QdrantInfo | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -85,15 +106,27 @@ export default function SettingsPage() {
         }
     }, []);
 
+    const loadQdrantInfo = useCallback(async () => {
+        try {
+            const res = await fetch(getApiUrl('/rag/collections'));
+            if (!res.ok) throw new Error('Failed to load Qdrant info');
+            const data = await res.json();
+            setQdrantInfo(data);
+        } catch (err: any) {
+            console.error('Error loading Qdrant info:', err);
+        }
+    }, []);
+
     useEffect(() => {
         const init = async () => {
             setLoading(true);
             await loadProviders();
             await loadSettings();
+            await loadQdrantInfo();
             setLoading(false);
         };
         init();
-    }, [loadProviders, loadSettings]);
+    }, [loadProviders, loadSettings, loadQdrantInfo]);
 
     // Load models when providers change or become available
     useEffect(() => {
@@ -248,10 +281,29 @@ export default function SettingsPage() {
 
                     {/* Embedding Model Selection */}
                     <section className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                        <h2 className="text-lg font-semibold text-white mb-4">Embeddings / RAG</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-white">Embeddings / RAG</h2>
+                            {settings && (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-slate-400">
+                                        Dimension: {settings.embedding_dimension}
+                                    </span>
+                                    {settings.embedding_locked && (
+                                        <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded border border-amber-500/30">
+                                            Locked
+                                        </span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
                         <p className="text-slate-400 text-sm mb-4">
                             Used for vector embeddings in incident search and log summaries.
                         </p>
+                        {settings?.embedding_locked && (
+                            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4 text-sm text-amber-400">
+                                Embedding dimension is locked at {settings.embedding_dimension}. Changing to a model with different dimensions requires recreating Qdrant collections.
+                            </div>
+                        )}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-300 mb-2">Provider</label>
@@ -293,13 +345,102 @@ export default function SettingsPage() {
                         </div>
                     </section>
 
-                    {/* Current Configuration */}
+                    {/* System Status */}
                     {settings && (
                         <section className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                            <h2 className="text-lg font-semibold text-white mb-4">Current Configuration</h2>
-                            <div className="font-mono text-sm bg-slate-900 rounded-lg p-4 text-slate-300">
-                                <pre>{JSON.stringify(settings, null, 2)}</pre>
+                            <h2 className="text-lg font-semibold text-white mb-4">System Status</h2>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="bg-slate-900/50 rounded-lg p-4">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Embedding Dimension</div>
+                                    <div className="text-white text-lg font-mono">{settings.embedding_dimension}</div>
+                                </div>
+                                <div className="bg-slate-900/50 rounded-lg p-4">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Dimension Status</div>
+                                    <div className={`text-lg font-medium ${settings.embedding_locked ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                        {settings.embedding_locked ? 'Locked' : 'Unlocked'}
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900/50 rounded-lg p-4">
+                                    <div className="text-slate-400 text-xs uppercase tracking-wider mb-1">Cloud LLM</div>
+                                    <div className={`text-lg font-medium ${settings.cloud_allowed ? 'text-emerald-400' : 'text-slate-500'}`}>
+                                        {settings.cloud_allowed ? 'Enabled' : 'Disabled'}
+                                    </div>
+                                </div>
                             </div>
+                            {!settings.cloud_allowed && (
+                                <p className="text-slate-500 text-xs mt-4">
+                                    Set ALLOW_CLOUD_LLM=true in environment to enable cloud providers like OpenRouter.
+                                </p>
+                            )}
+                        </section>
+                    )}
+
+                    {/* Qdrant Vector Store */}
+                    {qdrantInfo && (
+                        <section className={`rounded-xl border p-6 ${
+                            qdrantInfo.embedding_blocked
+                                ? 'bg-red-900/20 border-red-500/50'
+                                : 'bg-slate-800/50 border-slate-700/50'
+                        }`}>
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-semibold text-white">Vector Store (Qdrant)</h2>
+                                <div className="flex items-center gap-2">
+                                    {qdrantInfo.embedding_blocked && (
+                                        <span className="text-xs bg-red-500/30 text-red-300 px-2 py-0.5 rounded border border-red-500/50 font-medium">
+                                            BLOCKED
+                                        </span>
+                                    )}
+                                    {!qdrantInfo.consistent && !qdrantInfo.embedding_blocked && (
+                                        <span className="text-xs bg-red-500/20 text-red-400 px-2 py-0.5 rounded border border-red-500/30">
+                                            Dimension Mismatch
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            {qdrantInfo.embedding_blocked && (
+                                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4 text-sm text-red-400">
+                                    <strong>Embedding operations are BLOCKED</strong> due to inconsistent collection dimensions.
+                                    All indexing and search operations will fail until this is resolved.
+                                    Use the API endpoint <code className="bg-red-900/50 px-1 rounded">POST /api/rag/collections/recreate</code> to fix.
+                                </div>
+                            )}
+                            <div className="space-y-3">
+                                {qdrantInfo.collections.map(collection => (
+                                    <div
+                                        key={collection.name}
+                                        className={`border rounded-lg p-4 ${
+                                            collection.exists
+                                                ? 'border-slate-700/40 bg-slate-900/30'
+                                                : 'border-red-500/30 bg-red-500/5'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="text-white font-medium font-mono text-sm">{collection.name}</h3>
+                                                <div className="flex gap-4 mt-1 text-sm text-slate-400">
+                                                    {collection.exists ? (
+                                                        <>
+                                                            <span>Dimension: <span className="text-white font-mono">{collection.vector_size}</span></span>
+                                                            <span>Documents: <span className="text-white font-mono">{collection.points_count.toLocaleString()}</span></span>
+                                                        </>
+                                                    ) : (
+                                                        <span className="text-red-400">Collection not found</span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className={`w-3 h-3 rounded-full ${
+                                                collection.exists ? 'bg-emerald-500' : 'bg-red-500'
+                                            }`} />
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {qdrantInfo.error && (
+                                <p className="text-red-400 text-sm mt-3">Error: {qdrantInfo.error}</p>
+                            )}
+                            <p className="text-slate-500 text-xs mt-4">
+                                Target dimension: {qdrantInfo.target_dimension}. To recreate collections with a new dimension, use the API endpoint POST /api/rag/collections/recreate.
+                            </p>
                         </section>
                     )}
                 </div>

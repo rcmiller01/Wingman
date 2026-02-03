@@ -6,14 +6,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from homelab.storage.models import LogEntry, LogSummary
-from homelab.rag.rag_indexer import rag_indexer
+from homelab.rag.rag_indexer import rag_indexer, EmbeddingBlockedError
 from homelab.notifications.router import notification_router
 
 class LogSummarizer:
     """Summarizes logs before they are purged."""
-    
+
     async def summarize_expiring_logs(self, db: AsyncSession, retention_days: int = 90) -> int:
-        """Find logs near expiry, summarize them, and store summaries."""
+        """Find logs near expiry, summarize them, and store summaries.
+
+        Raises:
+            EmbeddingBlockedError: If vector store is in blocked state.
+        """
+        # Early check: fail fast if embeddings are blocked
+        from homelab.llm.providers import llm_manager
+        if llm_manager.is_embedding_blocked():
+            raise EmbeddingBlockedError(
+                "Log summarization blocked: Qdrant collections have inconsistent dimensions. "
+                "Use POST /api/rag/collections/recreate to resolve."
+            )
+
         # Target logs expiring in the next 24 hours (or already expired but not purged)
         now = datetime.utcnow()
         retention_window_start = now - timedelta(days=retention_days)
@@ -65,23 +77,29 @@ class LogSummarizer:
                 retention_date=retention_date,
             )
             db.add(summary)
+
+            # 4. Index in Vector Store BEFORE commit to prevent partial state
+            # If indexing fails, we rollback and propagate the error
+            try:
+                await rag_indexer.index_log_summary(
+                    resource_ref=resource_ref,
+                    summary_text=summary_text,
+                    time_range={
+                        "start": start_date.isoformat(),
+                        "end": end_date.isoformat(),
+                    },
+                    metadata={
+                        "log_count": count,
+                        "retention_date": retention_date.isoformat(),
+                    },
+                )
+            except EmbeddingBlockedError:
+                await db.rollback()
+                raise
+
+            # Only commit after successful indexing
             await db.commit()
             await db.refresh(summary)
-            
-            # 4. Index in Vector Store using unified RAG Indexer
-            await rag_indexer.index_log_summary(
-                resource_ref=resource_ref,
-                summary_text=summary_text,
-                time_range={
-                    "start": start_date.isoformat(),
-                    "end": end_date.isoformat(),
-                },
-                metadata={
-                    "summary_id": str(summary.id),
-                    "log_count": count,
-                    "retention_date": retention_date.isoformat(),
-                },
-            )
 
             await notification_router.notify_event(
                 "digest_ready",
