@@ -25,13 +25,12 @@ class RAGIndexer:
 
     def __init__(self):
         self.client = QdrantClient(url=settings.qdrant_url)
-        self._ensure_collections()
 
     def _get_target_dimension(self) -> int:
         """Get the target embedding dimension from LLM manager."""
         return llm_manager.get_embedding_dimension()
 
-    def _ensure_collections(self):
+    def ensure_collections(self):
         """Ensure required collections exist."""
         try:
             dim = self._get_target_dimension()
@@ -319,10 +318,6 @@ class RAGIndexer:
 
         except EmbeddingBlockedError:
             raise
-        except Exception as e:
-            print(f"[RAGIndexer] Search error: {e}")
-            return []
-            
         except Exception as e:
             print(f"[RAGIndexer] Search error: {e}")
             return []
