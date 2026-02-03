@@ -1,21 +1,19 @@
 """RAG Indexer - indexes documents into Qdrant vector store."""
 
-import httpx
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from datetime import datetime
 import uuid
 
 from homelab.config import get_settings
-from homelab.storage.models import IncidentNarrative
+from homelab.llm.providers import llm_manager
 
 
 settings = get_settings()
 
-# Embedding model settings
-EMBEDDING_MODEL = "nomic-embed-text"
+# Embedding dimension - matches common embedding models
+# nomic-embed-text: 768, text-embedding-3-small: 1536
+# We use 768 as default for Ollama compatibility
 EMBEDDING_DIMENSION = 768
 
 # Collection names
@@ -195,20 +193,9 @@ class RAGIndexer:
             return []
     
     async def _get_embedding(self, text: str) -> list[float] | None:
-        """Get embedding from Ollama."""
+        """Get embedding from configured LLM provider."""
         try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.post(
-                    f"{settings.ollama_host}/api/embeddings",
-                    json={
-                        "model": EMBEDDING_MODEL,
-                        "prompt": text[:4000],  # Limit input size
-                    },
-                )
-                response.raise_for_status()
-                data = response.json()
-                return data.get("embedding")
-                
+            return await llm_manager.embed(text[:4000])  # Limit input size
         except Exception as e:
             print(f"[RAGIndexer] Embedding error: {e}")
             return None

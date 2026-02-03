@@ -1,25 +1,22 @@
 """Narrative Generator - Uses LLM to summarize incidents."""
 
-import json
 import logging
-import httpx
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from homelab.config import get_settings
 from homelab.storage.models import Incident, IncidentNarrative, Fact, LogEntry
 from homelab.llm.validators import NarrativeOutput
+from homelab.llm.providers import llm_manager, LLMFunction
 
-settings = get_settings()
 logger = logging.getLogger(__name__)
 
+
 class NarrativeGenerator:
-    """Generates human-readable narratives for incidents using local LLM."""
-    
+    """Generates human-readable narratives for incidents using configured LLM."""
+
     def __init__(self):
-        self.ollama_url = settings.ollama_host  # e.g. "http://host.docker.internal:11434"
-        self.model = settings.ollama_model      # e.g. "llama3" or "mistral"
+        pass  # Uses llm_manager singleton for LLM operations
         
     async def generate_narrative(self, db: AsyncSession, incident_id: str) -> IncidentNarrative | None:
         """Generate a narrative for a specific incident."""
@@ -54,17 +51,18 @@ class NarrativeGenerator:
             )
             logs.extend(log_result.scalars().all())
             
-        # 4. RAG: Search for similar past incidents
+        # 4. RAG: Search for similar past incidents and historical log patterns
         from homelab.rag.rag_indexer import rag_indexer
-        
+
         search_query = f"Incident on {', '.join(incident.affected_resources)}: {', '.join(incident.symptoms)}"
         similar_docs = await rag_indexer.search_narratives(search_query, limit=2)
-        
+        log_summaries = await rag_indexer.search_summaries(search_query, limit=2)
+
         # 5. Construct Prompt
-        prompt = self._construct_prompt(incident, facts, logs, similar_docs)
+        prompt = self._construct_prompt(incident, facts, logs, similar_docs, log_summaries)
         
         # 6. Call LLM
-        narrative_text = await self._call_ollama(prompt)
+        narrative_text = await self._call_llm(prompt)
         narrative_text = NarrativeOutput.model_validate({"text": narrative_text}, strict=True).text
         
         # 7. Create/Update IncidentNarrative
@@ -100,20 +98,27 @@ class NarrativeGenerator:
             
         return narrative
 
-    def _construct_prompt(self, incident: Incident, facts: list[Fact], logs: list[LogEntry], similar_docs: list = None) -> str:
+    def _construct_prompt(self, incident: Incident, facts: list[Fact], logs: list[LogEntry], similar_docs: list = None, log_summaries: list = None) -> str:
         """Construct the prompt for the LLM."""
-        
+
         fact_str = "\n".join([f"- [{f.timestamp}] {f.fact_type}: {f.value}" for f in facts])
         log_str = "\n".join([f"- [{l.timestamp}] {l.log_source}: {l.content[:200]}" for l in logs])
         symptom_str = "\n".join([f"- {s}" for s in incident.symptoms])
-        
+
         rag_context = ""
         if similar_docs:
             rag_context = "**Similar Past Incidents:**\n"
             for doc in similar_docs:
                 rag_context += f"- [Score {doc['score']:.2f}] {doc.get('text', '')[:200]}...\n"
             rag_context += "\n"
-        
+
+        history_context = ""
+        if log_summaries:
+            history_context = "**Historical Log Patterns:**\n"
+            for summary in log_summaries:
+                history_context += f"- [Score {summary['score']:.2f}] {summary.get('text', '')[:300]}...\n"
+            history_context += "\n"
+
         return f"""
 You are an expert Site Reliability Engineer (SRE). Analyze the following incident and write a concise, technical narrative.
 
@@ -131,31 +136,21 @@ You are an expert Site Reliability Engineer (SRE). Analyze the following inciden
 **Recent Logs:**
 {log_str}
 
-{rag_context}
-**Instructions:**
+{rag_context}{history_context}**Instructions:**
 1. Summarize what is happening.
 2. Identify potential root causes based on the logs and facts.
 3. Suggest 2-3 specific troubleshooting steps.
 4. If similar incidents are provided, check if the current issue follows a pattern.
-5. Format output in Markdown.
+5. If historical log patterns are provided, note any recurring issues or trends.
+6. Format output in Markdown.
 
 **Narrative:**
 """
 
-    async def _call_ollama(self, prompt: str) -> str:
-        """Call the Ollama API."""
+    async def _call_llm(self, prompt: str) -> str:
+        """Call the configured LLM provider."""
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={
-                        "model": self.model,
-                        "prompt": prompt,
-                        "stream": False
-                    }
-                )
-                response.raise_for_status()
-                return response.json().get("response", "Error: Empty response from LLM")
+            return await llm_manager.generate(prompt, function=LLMFunction.CHAT)
         except Exception as e:
             logger.error("[NarrativeGenerator] LLM Error: %s", e)
             return f"**Error generating narrative:** {str(e)}"

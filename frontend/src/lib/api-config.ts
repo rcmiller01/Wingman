@@ -13,6 +13,8 @@ export const API_CONFIG = {
         incidents: '/api/incidents',
         plans: '/api/plans',
         rag: '/api/rag',
+        todos: '/api/todos',
+        settings: '/api/settings',
     },
 } as const;
 

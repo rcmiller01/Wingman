@@ -1,4 +1,9 @@
-"""API for managing remediation plans."""
+"""API for viewing action history (audit/read-only).
+
+NOTE: This API provides read-only access to ActionHistory records for auditing purposes.
+For approval workflows, use /api/todos which manages TodoStep records.
+The TodoStep model is the active approval mechanism used by the control plane.
+"""
 
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -9,7 +14,7 @@ from sqlalchemy import select
 from homelab.storage.database import get_db
 from homelab.storage.models import ActionHistory, ActionStatus
 
-router = APIRouter(prefix="/api/plans", tags=["plans"])
+router = APIRouter(prefix="/api/plans", tags=["plans (audit)"])
 
 
 class PlanResponse(BaseModel):
@@ -52,40 +57,16 @@ async def list_plans(
         "plans": [PlanResponse.model_validate(plan) for plan in plans],
     }
 
-@router.post("/{plan_id}/approve")
-async def approve_plan(
+@router.get("/{plan_id}")
+async def get_plan(
     plan_id: str,
     db: AsyncSession = Depends(get_db)
 ):
-    """Approve a pending plan for execution."""
+    """Get a specific action history record by ID."""
     result = await db.execute(select(ActionHistory).where(ActionHistory.id == plan_id))
     plan = result.scalar_one_or_none()
-    
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-        
-    if plan.status != ActionStatus.pending:
-        raise HTTPException(status_code=400, detail=f"Plan status is {plan.status}, cannot approve")
-        
-    plan.status = ActionStatus.approved
-    plan.approved_at = datetime.utcnow()
-    await db.commit()
-    return {"message": "Plan approved", "plan_id": plan_id}
 
-@router.post("/{plan_id}/reject")
-async def reject_plan(
-    plan_id: str,
-    db: AsyncSession = Depends(get_db)
-):
-    """Reject (delete) a pending plan."""
-    result = await db.execute(select(ActionHistory).where(ActionHistory.id == plan_id))
-    plan = result.scalar_one_or_none()
-    
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
-        
-    # We can either mark as rejected or delete. For MVP, failed/rejected is similar.
-    plan.status = ActionStatus.failed
-    plan.error = "User rejected plan"
-    await db.commit()
-    return {"message": "Plan rejected", "plan_id": plan_id}
+
+    return PlanResponse.model_validate(plan)
