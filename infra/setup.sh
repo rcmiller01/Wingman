@@ -59,8 +59,8 @@ echo "🦙 Local LLM Configuration (Ollama)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-read -p "Ollama Host URL [http://host.docker.internal:11434]: " OLLAMA_HOST
-OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+read -p "Ollama Host URL (leave blank to supply later): " OLLAMA_HOST
+OLLAMA_HOST=${OLLAMA_HOST:-}
 sed -i "s|^OLLAMA_HOST=.*|OLLAMA_HOST=$OLLAMA_HOST|" .env
 
 echo ""
