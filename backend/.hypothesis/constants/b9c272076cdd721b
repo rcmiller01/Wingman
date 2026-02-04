@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\fastapi\security\http.py
+# hypothesis_version: 6.137.1
+
+[':', 'Authorization', 'Basic', 'Bearer token format.', 'Not authenticated', 'WWW-Authenticate', 'ascii', 'basic', 'bearer', 'digest']

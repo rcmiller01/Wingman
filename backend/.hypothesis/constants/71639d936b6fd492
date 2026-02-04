@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\inventory.py
+# hypothesis_version: 6.137.1
+
+['/all', '/api/inventory', '/containers', '/lxcs', '/nodes', '/status', '/vms', 'Container not found', 'available', 'collector', 'configured', 'containers', 'count', 'docker', 'error', 'intervalSeconds', 'inventory', 'lxcs', 'name', 'node', 'nodes', 'proxmox', 'running', 'status', 'vms']

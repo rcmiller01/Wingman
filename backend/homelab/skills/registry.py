@@ -196,6 +196,415 @@ class SkillRegistry:
             verification_template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').snapshot.get()"
         ))
         
+        # Additional diagnostics
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-container-stats",
+                name="Container Resource Stats",
+                description="Get real-time CPU, memory, and I/O stats for a container",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=5,
+                tags=["docker", "stats", "resources", "memory", "cpu"]
+            ),
+            template="docker stats {{ container }} --no-stream --format 'table {{ '{{' }}.Name{{ '}}' }}\t{{ '{{' }}.CPUPerc{{ '}}' }}\t{{ '{{' }}.MemUsage{{ '}}' }}'",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-container-top",
+                name="Container Process List",
+                description="List running processes inside a container",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=5,
+                tags=["docker", "processes", "debugging"]
+            ),
+            template="docker top {{ container }}",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-container-health",
+                name="Check Container Health",
+                description="Check the health status of a container (if health check defined)",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=5,
+                tags=["docker", "health", "healthcheck"]
+            ),
+            template="docker inspect --format='{{ '{{' }}json .State.Health{{ '}}' }}' {{ container }}",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-container-diff",
+                name="Container Filesystem Changes",
+                description="Show files changed in container filesystem since creation",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=10,
+                tags=["docker", "filesystem", "changes", "debugging"]
+            ),
+            template="docker diff {{ container }}",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-container-port",
+                name="Container Port Mappings",
+                description="Show port mappings for a container",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=2,
+                tags=["docker", "network", "ports"]
+            ),
+            template="docker port {{ container }}",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-network-inspect",
+                name="Inspect Docker Network",
+                description="Get detailed information about a Docker network",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["network"],
+                estimated_duration_seconds=5,
+                tags=["docker", "network", "inspection"]
+            ),
+            template="docker network inspect {{ network }}",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-system-df",
+                name="Docker Disk Usage",
+                description="Show Docker disk space usage breakdown",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                estimated_duration_seconds=5,
+                tags=["docker", "disk", "storage", "space"]
+            ),
+            template="docker system df -v",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-vm-config",
+                name="Get VM Configuration",
+                description="Get full configuration of a Proxmox VM",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["proxmox"],
+                required_params=["node", "vmid"],
+                estimated_duration_seconds=5,
+                tags=["proxmox", "vm", "config", "inspection"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').config.get()",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-lxc-status",
+                name="Get LXC Container Status",
+                description="Get status and resource usage of a Proxmox LXC container",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["proxmox"],
+                required_params=["node", "vmid"],
+                estimated_duration_seconds=5,
+                tags=["proxmox", "lxc", "status"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').status.current.get()",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="diag-node-status",
+                name="Get Proxmox Node Status",
+                description="Get status and resource usage of a Proxmox node",
+                category=SkillCategory.diagnostics,
+                risk=SkillRisk.low,
+                target_types=["proxmox"],
+                required_params=["node"],
+                estimated_duration_seconds=5,
+                tags=["proxmox", "node", "status", "resources"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').status.get()",
+            verification_template=None
+        ))
+        
+        # Additional remediation skills
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-start-container",
+                name="Start Container",
+                description="Start a stopped Docker container",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=10,
+                tags=["docker", "start", "recovery"]
+            ),
+            template="docker start {{ container }}",
+            verification_template="docker ps --filter name={{ container }} --format '{{ '{{' }}.Status{{ '}}' }}'"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-pause-container",
+                name="Pause Container",
+                description="Pause a running container (freezes processes)",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.medium,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=5,
+                requires_confirmation=True,
+                tags=["docker", "pause", "freeze"]
+            ),
+            template="docker pause {{ container }}",
+            verification_template="docker ps --filter name={{ container }} --format '{{ '{{' }}.Status{{ '}}' }}'"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-unpause-container",
+                name="Unpause Container",
+                description="Resume a paused container",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                estimated_duration_seconds=5,
+                tags=["docker", "unpause", "resume"]
+            ),
+            template="docker unpause {{ container }}",
+            verification_template="docker ps --filter name={{ container }} --format '{{ '{{' }}.Status{{ '}}' }}'"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-start-vm",
+                name="Start VM",
+                description="Start a stopped Proxmox VM",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.low,
+                target_types=["proxmox"],
+                required_params=["node", "vmid"],
+                estimated_duration_seconds=60,
+                tags=["proxmox", "vm", "start"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').status.start.post()",
+            verification_template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').status.current.get()"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-start-lxc",
+                name="Start LXC Container",
+                description="Start a stopped Proxmox LXC container",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.low,
+                target_types=["proxmox"],
+                required_params=["node", "vmid"],
+                estimated_duration_seconds=30,
+                tags=["proxmox", "lxc", "start"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').status.start.post()",
+            verification_template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').status.current.get()"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="rem-stop-lxc",
+                name="Stop LXC Container",
+                description="Gracefully stop a Proxmox LXC container",
+                category=SkillCategory.remediation,
+                risk=SkillRisk.high,
+                target_types=["proxmox"],
+                required_params=["node", "vmid"],
+                estimated_duration_seconds=60,
+                requires_confirmation=True,
+                tags=["proxmox", "lxc", "stop", "destructive"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').status.shutdown.post()",
+            verification_template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').status.current.get()"
+        ))
+        
+        # Maintenance skills
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-prune-containers",
+                name="Prune Stopped Containers",
+                description="Remove all stopped Docker containers",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.medium,
+                target_types=["docker"],
+                estimated_duration_seconds=30,
+                requires_confirmation=True,
+                tags=["docker", "cleanup", "containers"]
+            ),
+            template="docker container prune -f",
+            verification_template="docker ps -a --format 'table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}'"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-prune-volumes",
+                name="Prune Unused Volumes",
+                description="Remove unused Docker volumes to free disk space",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.high,
+                target_types=["docker"],
+                estimated_duration_seconds=60,
+                requires_confirmation=True,
+                tags=["docker", "cleanup", "volumes", "disk", "destructive"]
+            ),
+            template="docker volume prune -f",
+            verification_template="docker system df"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-prune-networks",
+                name="Prune Unused Networks",
+                description="Remove unused Docker networks",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                estimated_duration_seconds=10,
+                tags=["docker", "cleanup", "networks"]
+            ),
+            template="docker network prune -f",
+            verification_template="docker network ls"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-system-prune",
+                name="Full Docker System Prune",
+                description="Remove all unused Docker data (images, containers, volumes, networks)",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.high,
+                target_types=["docker"],
+                optional_params=["all"],
+                estimated_duration_seconds=120,
+                requires_confirmation=True,
+                tags=["docker", "cleanup", "disk", "destructive"]
+            ),
+            template="docker system prune{% if all %} -a{% endif %} -f --volumes",
+            verification_template="docker system df"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-delete-snapshot",
+                name="Delete VM Snapshot",
+                description="Delete a snapshot from a Proxmox VM",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.medium,
+                target_types=["proxmox"],
+                required_params=["node", "vmid", "snapname"],
+                estimated_duration_seconds=60,
+                requires_confirmation=True,
+                tags=["proxmox", "vm", "snapshot", "cleanup"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').snapshot('{{ snapname }}').delete()",
+            verification_template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').snapshot.get()"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-rollback-snapshot",
+                name="Rollback VM to Snapshot",
+                description="Restore a Proxmox VM to a previous snapshot state",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.high,
+                target_types=["proxmox"],
+                required_params=["node", "vmid", "snapname"],
+                estimated_duration_seconds=120,
+                requires_confirmation=True,
+                tags=["proxmox", "vm", "snapshot", "rollback", "restore"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').snapshot('{{ snapname }}').rollback.post()",
+            verification_template="proxmox_api.nodes('{{ node }}').qemu('{{ vmid }}').status.current.get()"
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="maint-create-lxc-snapshot",
+                name="Create LXC Snapshot",
+                description="Create a snapshot of a Proxmox LXC container",
+                category=SkillCategory.maintenance,
+                risk=SkillRisk.medium,
+                target_types=["proxmox"],
+                required_params=["node", "vmid", "snapname"],
+                optional_params=["description"],
+                estimated_duration_seconds=120,
+                tags=["proxmox", "lxc", "snapshot", "backup"]
+            ),
+            template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').snapshot.post(snapname='{{ snapname }}'{% if description %}, description='{{ description }}'{% endif %})",
+            verification_template="proxmox_api.nodes('{{ node }}').lxc('{{ vmid }}').snapshot.get()"
+        ))
+        
+        # Monitoring skills
+        self.register(Skill(
+            meta=SkillMeta(
+                id="mon-container-events",
+                name="Stream Container Events",
+                description="Get recent Docker events for a container",
+                category=SkillCategory.monitoring,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                required_params=["container"],
+                optional_params=["since"],
+                estimated_duration_seconds=5,
+                tags=["docker", "events", "monitoring"]
+            ),
+            template="docker events --filter container={{ container }}{% if since %} --since {{ since }}{% endif %} --until 0s",
+            verification_template=None
+        ))
+        
+        self.register(Skill(
+            meta=SkillMeta(
+                id="mon-system-events",
+                name="Recent Docker Events",
+                description="Get recent Docker daemon events (all containers)",
+                category=SkillCategory.monitoring,
+                risk=SkillRisk.low,
+                target_types=["docker"],
+                optional_params=["since"],
+                estimated_duration_seconds=5,
+                tags=["docker", "events", "monitoring", "system"]
+            ),
+            template="docker events{% if since %} --since {{ since }}{% endif %} --until 0s",
+            verification_template=None
+        ))
+        
         logger.info(f"[SkillRegistry] Loaded {len(self._skills)} built-in skills")
     
     def register(self, skill: Skill) -> None:

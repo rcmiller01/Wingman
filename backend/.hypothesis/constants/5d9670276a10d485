@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\apscheduler\events.py
+# hypothesis_version: 6.137.1
+
+['EVENT_ALL', 'EVENT_EXECUTOR_ADDED', 'EVENT_JOBSTORE_ADDED', 'EVENT_JOB_ADDED', 'EVENT_JOB_ERROR', 'EVENT_JOB_EXECUTED', 'EVENT_JOB_MISSED', 'EVENT_JOB_MODIFIED', 'EVENT_JOB_REMOVED', 'EVENT_JOB_SUBMITTED', 'JobEvent', 'JobExecutionEvent', 'JobSubmissionEvent', 'SchedulerEvent']

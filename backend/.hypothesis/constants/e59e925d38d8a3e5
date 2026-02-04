@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\todos.py
+# hypothesis_version: 6.137.1
+
+[400, 404, '/api/todos', '/{todo_id}/approve', '/{todo_id}/reject', 'Todo step approved', 'Todo step not found', 'Todo step rejected', 'User rejected step', 'message', 'todo_id', 'todos']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\logs.py
+# hypothesis_version: 6.137.1
+
+[100, 168, 500, 1440, '/api/logs', '/collect', '/file-sources', 'Container not found', 'container', 'container_id', 'containers', 'count', 'deleted', 'error', 'error_count', 'logs', 'logs_collected', 'name', 'patterns', 'resource_ref', 'source_id', 'sources', 'total_logs']

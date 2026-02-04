@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\plans.py
+# hypothesis_version: 6.137.1
+
+[400, 404, '/api/plans', '/{plan_id}', 'Plan not found', 'count', 'plans', 'plans (audit)']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\apscheduler\schedulers\base.py
+# hypothesis_version: 6.137.1
+
+['    No pending jobs', '.', 'Pending jobs:', 'Removed job %s', 'Scheduler started', '__getstate__', '__setstate__', 'apscheduler.', 'apscheduler.triggers', 'args', 'ascii', 'class', 'coalesce', 'date', 'default', 'executor', 'executors', 'func', 'has_threads', 'id', 'job_defaults', 'jobs', 'jobstore', 'jobstores', 'kwargs', 'logger', 'max_instances', 'misfire_grace_time', 'name', 'next_run_time', 'read', 'scheduler_version', 'timezone', 'trigger', 'type', 'uwsgi', 'version', 'w', 'write']

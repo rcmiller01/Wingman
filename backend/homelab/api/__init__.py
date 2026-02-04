@@ -8,5 +8,6 @@ from homelab.api.plans import router as plans_router
 from homelab.api.rag import router as rag_router
 from homelab.api.todos import router as todos_router
 from homelab.api.settings import router as settings_router
+from homelab.api.executions import router as executions_router
 
-__all__ = ["health_router", "inventory_router", "logs_router", "facts_router", "incidents_router", "plans_router", "rag_router", "todos_router", "settings_router"]
+__all__ = ["health_router", "inventory_router", "logs_router", "facts_router", "incidents_router", "plans_router", "rag_router", "todos_router", "settings_router", "executions_router"]

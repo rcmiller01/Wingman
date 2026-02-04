@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\rag.py
+# hypothesis_version: 6.137.1
+
+[500, 503, '/api/rag', '/collections', '/health', '/search', '/summarize_logs', 'Retry-After', 'audit', 'blocked', 'collections', 'current_info', 'dimension_locked', 'embedding_blocked', 'embedding_locked', 'error', 'log_summaries', 'message', 'narratives', 'new_dimension', 'ok', 'old_collections', 'old_dimension', 'query', 'rag', 'reason', 'recovery', 'results', 'status', 'success', 'target_dimension', 'timestamp']

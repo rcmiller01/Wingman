@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\executions.py
+# hypothesis_version: 6.137.1
+
+[100, 400, 404, ',', '/api/executions', '/mode', '/skills', '/{execution_id}', 'Filter by category', 'Filter by risk level', 'Items per page', 'Page number', 'approved_at', 'approved_by', 'created_at', 'duration_ms', 'error_message', 'executed_at', 'executions', 'id', 'low', 'operator', 'output', 'parameters', 'rejected_at', 'rejected_by', 'rejection_reason', 'result', 'risk_level', 'skill_id', 'skill_name', 'status', 'success', 'updated_at']

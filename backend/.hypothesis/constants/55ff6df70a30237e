@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\settings.py
+# hypothesis_version: 6.137.1
+
+[400, 403, 409, '/api/settings', '/llm', '/llm/providers', '/llm/test', '/llm/{function}', 'chat', 'cloud_allowed', 'embedding', 'embedding_dimension', 'embedding_locked', 'error', 'message', 'model_count', 'provider', 'settings', 'success']

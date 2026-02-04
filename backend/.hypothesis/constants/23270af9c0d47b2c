@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\incidents.py
+# hypothesis_version: 6.137.1
+
+[100, 400, 404, 503, ',', '/api/incidents', '/detect', '/{incident_id}', 'Incident not found', 'Retry-After', 'affected_resources', 'all', 'confidence', 'detected_at', 'detected_count', 'embedding_blocked', 'error', 'id', 'incident', 'incident_id', 'incident_resolved', 'incidents', 'message', 'narrative', 'narrative_text', 'reason', 'recovery', 'resolution_steps', 'resolved', 'resolved_at', 'root_cause', 'severity', 'status', 'symptoms']

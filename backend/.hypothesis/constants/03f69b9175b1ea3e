@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\__init__.py
+# hypothesis_version: 6.137.1
+
+['executions_router', 'facts_router', 'health_router', 'incidents_router', 'inventory_router', 'logs_router', 'plans_router', 'rag_router', 'settings_router', 'todos_router']

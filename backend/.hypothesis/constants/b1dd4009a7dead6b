@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\starlette\_exception_handler.py
+# hypothesis_version: 6.137.1
+
+['http', 'http.response.start', 'type', 'websocket']

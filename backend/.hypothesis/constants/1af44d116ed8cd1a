@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\api\health.py
+# hypothesis_version: 6.137.1
+
+['/api/health', '/ready', 'SELECT 1', 'connected', 'database', 'degraded', 'health', 'healthy', 'homelab-copilot', 'ready', 'service', 'status']

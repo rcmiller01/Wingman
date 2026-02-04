@@ -24,6 +24,14 @@ from .models import (
     SkillExecutionStatus,
 )
 from .runner import SkillRunner, skill_runner
+from .execution_modes import (
+    ExecutionMode,
+    ExecutionModeManager,
+    execution_mode_manager,
+    MockResponse,
+    execution_mode_context,
+    async_execution_mode_context,
+)
 
 __all__ = [
     "SkillRegistry",
@@ -36,4 +44,11 @@ __all__ = [
     "SkillExecutionStatus",
     "SkillRunner",
     "skill_runner",
+    # Execution modes
+    "ExecutionMode",
+    "ExecutionModeManager",
+    "execution_mode_manager",
+    "MockResponse",
+    "execution_mode_context",
+    "async_execution_mode_context",
 ]

@@ -4,11 +4,16 @@ Implements the execution flow:
 1. Validate skill and parameters
 2. Check risk level -> route to approval if needed (server-enforced)
 3. Validate through policy engine (same safeguards as control plane)
-4. Execute via appropriate adapter
+4. Execute via appropriate adapter (or mock in test mode)
 5. For high-risk: submit to judge for audit (leaves immutable record)
 6. On failure: exactly one retry attempt
 7. On retry failure: escalate to human
 8. Record complete audit artifact
+
+Execution Modes:
+- MOCK: No real execution, returns canned responses (unit tests, demos)
+- INTEGRATION: Uses real adapters but against test fixtures
+- LAB: Real execution against actual infrastructure (production)
 """
 
 import asyncio
@@ -34,6 +39,11 @@ from .models import (
     SkillExecutionStatus,
 )
 from .registry import skill_registry
+from .execution_modes import (
+    ExecutionMode,
+    execution_mode_manager,
+    MockResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -475,9 +485,39 @@ class SkillRunner:
         skill: Skill,
         execution: SkillExecution,
     ) -> dict[str, Any]:
-        """Execute the skill against the target infrastructure."""
+        """Execute the skill against the target infrastructure.
+        
+        Execution behavior depends on mode:
+        - MOCK: Return canned response, no real execution
+        - INTEGRATION: Real adapters against test fixtures
+        - LAB: Real execution against production infrastructure
+        """
         target = execution.target
         params = execution.parameters
+        
+        # Notify hooks (for test observability)
+        await execution_mode_manager.notify_hooks(skill.meta.id, target, params)
+        
+        # MOCK MODE: Return canned response without real execution
+        if execution_mode_manager.is_mock():
+            self._add_log(execution, f"[MOCK MODE] Simulating execution")
+            mock_response = execution_mode_manager.get_mock_response(skill.meta.id)
+            
+            # Simulate latency
+            if mock_response.delay_seconds > 0:
+                await asyncio.sleep(mock_response.delay_seconds)
+            
+            if not mock_response.success:
+                self._add_log(execution, f"[MOCK MODE] Simulated failure: {mock_response.error_message}")
+                raise Exception(mock_response.error_message or "Mock failure")
+            
+            self._add_log(execution, f"[MOCK MODE] Simulated success")
+            return {
+                "success": True,
+                "adapter": "mock",
+                "mode": "mock",
+                **mock_response.output,
+            }
         
         # SECURITY: Validate template doesn't contain sandbox escape patterns
         is_safe, violation = _validate_template_safety(skill.template)
@@ -490,6 +530,10 @@ class SkillRunner:
         template = env.from_string(skill.template)
         rendered = template.render(**params)
         self._add_log(execution, f"Rendered command: {rendered[:200]}...")
+        
+        # Log execution mode
+        mode = execution_mode_manager.mode
+        self._add_log(execution, f"Execution mode: {mode.value}")
         
         # Route to appropriate adapter based on target type
         if target.startswith("docker://"):

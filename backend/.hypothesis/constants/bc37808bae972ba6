@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\fastapi\security\oauth2.py
+# hypothesis_version: 6.137.1
+
+['Authorization', 'Bearer', 'Not authenticated', 'WWW-Authenticate', 'authorizationUrl', 'bearer', 'password', 'refreshUrl', 'scopes', 'tokenUrl']
