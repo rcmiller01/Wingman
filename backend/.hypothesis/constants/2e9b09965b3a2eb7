@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\sqlalchemy\dialects\__init__.py
+# hypothesis_version: 6.137.1
+
+['.', 'base', 'mariadb', 'mssql', 'mysql', 'oracle', 'postgresql', 'sqlalchemy.dialects', 'sqlalchemy.plugins', 'sqlite']

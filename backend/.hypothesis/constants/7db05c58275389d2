@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\adapters\proxmox_adapter.py
+# hypothesis_version: 6.137.1
+
+[8006, ':', '[ProxmoxAdapter] %s', 'cpu', 'http://', 'https://', 'lxc', 'maxmem', 'mem', 'name', 'node', 'proxmox', 'qemu', 'resource_ref', 'status', 'type', 'unknown', 'uptime', 'vmid']

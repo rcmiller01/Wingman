@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\adapters\__init__.py
+# hypothesis_version: 6.137.1
+
+['DockerAdapter', 'ProxmoxAdapter', 'docker_adapter', 'proxmox_adapter']

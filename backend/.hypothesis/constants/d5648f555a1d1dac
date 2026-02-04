@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\notifications\alerting.py
+# hypothesis_version: 6.137.1
+
+['AlertPolicyEngine', 'channel', 'email', 'escalate_after', 'match', 'name', 'notify', 'policies', 'severity', 'tags', 'unnamed']

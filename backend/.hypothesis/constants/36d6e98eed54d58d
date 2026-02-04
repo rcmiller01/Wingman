@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\control_plane\incident_detector.py
+# hypothesis_version: 6.137.1
+
+[200, 'connection refused', 'connection timed out', 'container_status', 'details', 'end', 'error_count', 'error_pattern', 'file_error_pattern', 'incident_id', 'keyword', 'keywords', 'name', 'no route to host', 'resource', 'restart_count', 'restart_loop', 'start', 'timeout', 'type', 'unknown', 'unreachable']

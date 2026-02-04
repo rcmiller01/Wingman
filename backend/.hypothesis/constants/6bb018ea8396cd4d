@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\requests_mock\response.py
+# hypothesis_version: 6.137.1
+
+[200, ', ', 'body', 'connection', 'content', 'cookies', 'exc', 'headers', 'json', 'json_encoder', 'raw', 'reason', 'status_code', 'text', 'utf-8']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\collectors\log_collector.py
+# hypothesis_version: 6.137.1
+
+[100, 200, 500, 1000, 'content', 'crash', 'error', 'exception', 'failed', 'fatal', 'file', 'id', 'ignore', 'keyword', 'log_error_signature', 'log_id', 'logs', 'name', 'panic', 'r', 'resource_ref', 'source', 'timestamp', 'utf-8']

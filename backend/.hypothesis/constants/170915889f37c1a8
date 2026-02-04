@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\antlr4\Token.py
+# hypothesis_version: 6.137.1
+
+["',<", ',', ',channel=', ':', '<EOF>', '<no text>', "='", '>', '[@', '\\n', '\\r', '\\t', ']', '_text', 'channel', 'column', 'line', 'source', 'start', 'stop', 'tokenIndex', 'type']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\notifications\channels.py
+# hypothesis_version: 6.137.1
+
+[10.0, 'From', 'Subject', 'To', 'X-Copilot-Event', 'alert', 'base', 'chat_id', 'discord', 'email', 'event_type', 'make', 'matrix', 'message', 'payload', 'plane', 'slack', 'telegram', 'text', 'title']

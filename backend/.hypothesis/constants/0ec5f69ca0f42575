@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\proxmoxer\core.py
+# hypothesis_version: 6.137.1
+
+[200, 299, 400, 595, 596, 597, 598, 599, 8006, 8007, '--output-format', '/', ':', '=', 'DELETE', 'GET', 'MIT', 'Oleg Butovich', 'PBS', 'PMG', 'POST', 'PUT', 'PVE', '_', 'base_url', 'default_port', 'host', 'https', 'json', 'local', 'openssh', 'password', 'proxmoxer', 'reason', 'serializer', 'service', 'session', 'ssh_paramiko', 'supported_backends', 'target', 'token', 'token_separator']

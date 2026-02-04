@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\proxmoxer\backends\https.py
+# hypothesis_version: 6.137.1
+
+[1024, 3600, 2147483135, ', ', '/access/ticket', ':', 'AuthCookie', 'Authorization', 'CSRFPreventionToken', 'Connection', 'Content-Type', 'GET', 'MIT', 'NeedTFA', 'Oleg Butovich', 'PVE', 'Windows', '[', ']:', 'accept', 'agent/exec', 'application/json', 'command', 'data', 'default_port', 'errors', 'json', 'keep-alive', 'otp', 'password', 'text/javascript', 'text/x-javascript', 'text/x-json', 'ticket', 'token', 'token_separator', 'username', 'utf-8']

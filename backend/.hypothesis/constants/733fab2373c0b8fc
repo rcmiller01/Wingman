@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\models\services.py
+# hypothesis_version: 6.137.1
+
+['ContainerSpec', 'ForceUpdate', 'Global', 'ID', 'Image', 'Index', 'Mode', 'Name', 'Options', 'Spec', 'TTY', 'TaskTemplate', 'Version', 'args', 'cap_add', 'cap_drop', 'command', 'configs', 'constraints', 'container_labels', 'container_spec', 'create', 'dns_config', 'endpoint_spec', 'env', 'fetch_current_spec', 'force_update', 'groups', 'healthcheck', 'hostname', 'hosts', 'image', 'init', 'isolation', 'labels', 'log_driver', 'log_driver_options', 'maxreplicas', 'mode', 'mounts', 'name', 'networks', 'open_stdin', 'placement', 'platforms', 'preferences', 'privileges', 'read_only', 'replicated', 'resources', 'restart_policy', 'rollback_config', 'secrets', 'service', 'stop_grace_period', 'stop_signal', 'sysctls', 'task_template', 'tty', 'update', 'update_config', 'user', 'workdir']

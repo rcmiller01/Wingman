@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\api\secret.py
+# hypothesis_version: 6.137.1
+
+['/secrets', '/secrets/create', '/secrets/{0}', '1.25', '1.31', 'Data', 'Driver', 'Labels', 'Name', 'ascii', 'filters', 'id', 'utf-8']

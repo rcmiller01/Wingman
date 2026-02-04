@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\policy\policy_engine.py
+# hypothesis_version: 6.137.1
+
+['Plan has no steps', 'diag-container-logs', 'diag-vm-status', 'docker://', 'maint-prune-images', 'proxmox://', 'rem-restart-lxc', 'rem-restart-vm', 'rem-stop-container', 'rem-stop-vm']

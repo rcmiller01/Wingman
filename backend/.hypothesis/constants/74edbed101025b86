@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\requests_mock\mocker.py
+# hypothesis_version: 6.137.1
+
+[', ', 'DELETE', 'GET', 'HEAD', 'OPTIONS', 'PATCH', 'POST', 'PUT', '__call__', '__self__', '_real_http', 'adapter', 'add_matcher', 'call_count', 'called', 'called_once', 'case_sensitive', 'get_adapter', 'json_encoder', 'kw', 'last_request', 'real_http', 'request_history', 'reset', 'send', 'test', 'timeout']

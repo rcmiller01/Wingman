@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\qdrant_client\http\api\snapshots_api.py
+# hypothesis_version: 6.137.1
+
+['/snapshots', '2.', 'BaseModel', 'Content-Type', 'DELETE', 'GET', 'Model', 'POST', 'PUT', 'application/json', 'checksum', 'collection_name', 'json', 'model_dump_json', 'priority', 'shard_id', 'snapshot', 'snapshot_name', 'wait']

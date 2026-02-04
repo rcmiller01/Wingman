@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\pydantic\_internal\_signature.py
+# hypothesis_version: 6.137.1
+
+['Any', '_', 'allow', 'data', 'default', 'extra_data', 'init', 'self']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\requests_mock\adapter.py
+# hypothesis_version: 6.137.1
+
+['/', 'Adapter', '_real_http', 'additional_matcher', 'complete_qs', 'json_encoder', 'request_headers', 'search', 'utf-8', '{} {} {}']

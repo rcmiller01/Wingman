@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\asyncpg\introspection.py
+# hypothesis_version: 6.137.1
+
+[b'b', b'c', b'd', b'e', 'elemtype', 'kind', 'oid']

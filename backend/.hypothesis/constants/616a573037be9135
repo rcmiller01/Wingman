@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\anyio\_core\_eventloop.py
+# hypothesis_version: 6.137.1
+
+['T_Retval', 'anyio._backends._', 'asyncio', 'trio']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\api\config.py
+# hypothesis_version: 6.137.1
+
+['/configs', '/configs/create', '/configs/{0}', '1.30', 'Data', 'Labels', 'Name', 'Templating', 'ascii', 'filters', 'id', 'utf-8']

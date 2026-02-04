@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\conftest.py
+# hypothesis_version: 6.137.1
+
+['**/debug_*.py', 'app/', 'function', 'scripts/', 'scripts/**/*.py']

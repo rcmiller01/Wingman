@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\control_plane\plan_proposal.py
+# hypothesis_version: 6.137.1
+
+[4000, 'PlanProposalSchema', 'action', 'after', 'approved', 'approved_at', 'approved_by', 'completed', 'completed_at', 'created_at', 'description', 'error', 'executed_at', 'executing', 'failed', 'forbid', 'id', 'incident_id', 'order', 'params', 'pending', 'rejected', 'result', 'status', 'steps', 'target', 'title', 'verification']

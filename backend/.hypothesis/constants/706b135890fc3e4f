@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\transport\unixconn.py
+# hypothesis_version: 6.137.1
+
+['/', 'http+unix://', 'localhost', 'max_pool_size', 'pools', 'socket_path', 'timeout']

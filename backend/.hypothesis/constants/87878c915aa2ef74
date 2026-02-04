@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\storage\audit_chain.py
+# hypothesis_version: 6.137.1
+
+['0', 'actual', 'actual_prev', 'chain_break', 'chain_valid', 'entry_id', 'expected', 'expected_prev', 'hash_mismatch', 'latest_hash', 'latest_sequence', 'latest_timestamp', 'sequence_gap', 'sequence_num', 'total_entries', 'type']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\qdrant_client\http\api\distributed_api.py
+# hypothesis_version: 6.137.1
+
+['/cluster', '/cluster/recover', '2.', 'BaseModel', 'Content-Type', 'DELETE', 'GET', 'Model', 'POST', 'PUT', 'application/json', 'collection_name', 'force', 'json', 'model_dump_json', 'peer_id', 'timeout']

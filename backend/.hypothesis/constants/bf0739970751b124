@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\adapters\docker_adapter.py
+# hypothesis_version: 6.137.1
+
+[100, 300, 1000, 1024, '+00:00', 'Config', 'Config.Env', 'Created', 'EndpointID', 'Env', 'FinishedAt', 'Health', 'ImagesDeleted', 'NetworkID', 'NetworkSettings', 'Networks', 'Ports', 'RestartCount', 'SpaceReclaimed', 'StartedAt', 'State', 'Status', 'Z', 'content', 'created', 'dangling', 'docker', 'error', 'finished_at', 'health', 'id', 'image', 'images_deleted', 'name', 'ports', 'replace', 'resource_ref', 'restart_count', 'short_id', 'source', 'space_reclaimed', 'started_at', 'state', 'status', 'stderr', 'stdout', 'timestamp', 'utf-8']

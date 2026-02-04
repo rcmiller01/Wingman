@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\auth.py
+# hypothesis_version: 6.137.1
+
+[b':', ' = ', '-', '.', '/', ':', '://', '<token>', 'Found auth config', 'IdentityToken', 'No auth config found', 'No entry found', 'Password', 'Secret', 'ServerAddress', 'Username', 'ascii', 'auth', 'auths', 'credHelpers', 'credsStore', 'docker.io', 'email', 'http://', 'https://', 'identitytoken', 'localhost', 'password', 'serveraddress', 'username', 'utf8']

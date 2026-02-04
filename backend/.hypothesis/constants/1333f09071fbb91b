@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\hydra\plugins\config_source.py
+# hypothesis_version: 6.137.1
+
+['#', '.', '.yaml', '.yml', '1.2', '://', '@', 'Invalid path', '^\\s*#\\s*@', '__init__.py', '__pycache__', 'package']

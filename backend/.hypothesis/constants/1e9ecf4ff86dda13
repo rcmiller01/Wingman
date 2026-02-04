@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\antlr4\dfa\DFAState.py
+# hypothesis_version: 6.137.1
+
+['(', ')', ', ', ':', '=>', 'alt', 'configs', 'edges', 'isAcceptState', 'lexerActionExecutor', 'pred', 'predicates', 'prediction', 'requiresFullContext', 'stateNumber']

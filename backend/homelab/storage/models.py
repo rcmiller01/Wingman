@@ -163,7 +163,15 @@ class IncidentNarrative(Base):
 
 
 class ActionHistory(Base):
-    """Audit trail of approved and executed actions."""
+    """
+    Audit trail of approved and executed actions.
+    
+    IMMUTABILITY: This table is append-only. Entries should never be updated
+    or deleted via the API. Each entry includes a hash chain linking to the
+    previous entry, enabling tamper detection.
+    
+    Hash chain: entry_hash = SHA256(prev_hash + action_template + target + timestamp)
+    """
     __tablename__ = "action_history"
     
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
@@ -181,6 +189,11 @@ class ActionHistory(Base):
     
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Hash chain for tamper detection (append-only audit log)
+    prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # SHA256 of previous entry
+    entry_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)  # SHA256 of this entry
+    sequence_num: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)  # Monotonic sequence
     
     # Relationships
     incident: Mapped["Incident | None"] = relationship(back_populates="actions")

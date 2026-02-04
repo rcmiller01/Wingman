@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\storage\models.py
+# hypothesis_version: 6.137.1
+
+[100, 255, 500, 'ActionHistory', 'ActionHistory | None', 'CASCADE', 'Incident', 'Incident | None', 'SET NULL', 'access_logs', 'action_history', 'action_history.id', 'actions', 'approved', 'collect_diagnostics', 'completed', 'create_snapshot', 'critical', 'executing', 'facts', 'failed', 'file_log_sources', 'high', 'incident', 'incident_narratives', 'incidents', 'incidents.id', 'investigating', 'log_entries', 'log_summaries', 'low', 'medium', 'mitigated', 'narrative', 'open', 'pending', 'resolved', 'resource_ref', 'restart_resource', 'rollback_to_snapshot', 'start_resource', 'stop_resource', 'timestamp', 'todo_steps', 'validate_paths', 'validate_permissions']

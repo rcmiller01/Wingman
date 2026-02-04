@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\llm\providers.py
+# hypothesis_version: 6.137.1
+
+[10.0, 15.0, 30.0, 120.0, 384, 768, 1024, 1536, 3072, 4000, 8000, 'ALLOW_CLOUD_LLM', 'Authorization', 'Content-Type', 'HTTP-Referer', 'Homelab Copilot', 'Ollama (Local)', 'OpenRouter (Cloud)', 'X-Title', 'all-minilm', 'application/json', 'available', 'capabilities', 'chat', 'choices', 'cloud_allowed', 'configured', 'content', 'context_length', 'data', 'embed', 'embedding', 'embedding_blocked', 'embedding_dimension', 'embedding_locked', 'false', 'function', 'id', 'input', 'message', 'messages', 'model', 'models', 'modified_at', 'mxbai-embed-large', 'name', 'nomic', 'nomic-embed-text', 'ollama', 'openai', 'openrouter', 'pricing', 'prompt', 'provider', 'response', 'role', 'size', 'stream', 'text-embedding', 'true', 'user']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\trio\_highlevel_generic.py
+# hypothesis_version: 6.137.1
+
+['ReceiveStreamT', 'SendStreamT', 'send_eof']

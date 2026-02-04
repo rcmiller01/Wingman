@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\collectors\fact_collector.py
+# hypothesis_version: 6.137.1
+
+[100, 'container_status', 'cpu', 'docker', 'health', 'image', 'lxc_status', 'maxmem', 'mem', 'name', 'node', 'node_status', 'proxmox', 'resource_ref', 'restart_count', 'status', 'uptime', 'vm_status']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\requests_mock\request.py
+# hypothesis_version: 6.137.1
+
+[443, ':', '__setstate__', '_matcher', 'allow_redirects', 'case_sensitive', 'cert', 'http', 'https', 'proxies', 'stream', 'timeout', 'utf-8', 'verify', '{0.method} {0.url}']

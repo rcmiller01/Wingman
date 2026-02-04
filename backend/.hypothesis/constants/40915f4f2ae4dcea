@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\qdrant_client\local\json_path_parser.py
+# hypothesis_version: 6.137.1
+
+['"', '-', '.', 'Invalid path', '[', ']', '_', 'index', 'key', 'wildcard_index']

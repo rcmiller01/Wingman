@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\requests\api.py
+# hypothesis_version: 6.137.1
+
+['allow_redirects', 'delete', 'get', 'head', 'options', 'patch', 'post', 'put']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\hydra\plugins\completion_plugin.py
+# hypothesis_version: 6.137.1
+
+['+', '.', './', '.\\', '/', '=', '\\', 'a', 'win', 'z', '~']

@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\utils\proxy.py
+# hypothesis_version: 6.137.1
+
+['FTP_PROXY', 'HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY', 'ftp', 'ftpProxy', 'ftp_proxy', 'http', 'httpProxy', 'http_proxy', 'https', 'httpsProxy', 'https_proxy', 'noProxy', 'no_proxy']

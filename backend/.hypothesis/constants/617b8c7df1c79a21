@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\skills\models.py
+# hypothesis_version: 6.137.1
+
+['Skill parameters', 'approved', 'completed', 'diagnostics', 'escalated', 'executing', 'failed', 'high', 'low', 'maintenance', 'medium', 'monitoring', 'pending_approval', 'pending_audit', 'rejected', 'remediation', 'retrying', 'security']

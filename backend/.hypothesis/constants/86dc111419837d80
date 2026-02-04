@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\qdrant_client\connection.py
+# hypothesis_version: 6.137.1
+
+['_ClientCallDetails', 'authorization', 'credentials', 'metadata', 'method', 'retry-after', 'timeout']

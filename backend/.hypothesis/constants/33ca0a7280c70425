@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\client.py
+# hypothesis_version: 6.137.1
+
+['max_pool_size', 'timeout', 'use_ssh_client', 'version']

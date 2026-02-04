@@ -1,0 +1,4 @@
+# file: C:\Users\rober\.gemini\antigravity\scratch\Wingman\backend\homelab\skills\registry.py
+# hypothesis_version: 6.137.1
+
+[0.0, 0.1, 0.15, 0.2, 0.3, 120, 300, '; ', 'Create VM Snapshot', 'General match', 'Get VM Status', 'Inspect Container', 'Prune Unused Images', 'Restart Container', 'Restart VM', 'Stop Container', 'Stop VM', 'all', 'backup', 'cleanup', 'container', 'cpu', 'crash', 'debugging', 'description', 'destructive', 'diag-container-logs', 'diag-vm-status', 'disk', 'docker', 'docker system df', 'docker://', 'error', 'failed', 'filter', 'inspection', 'lines', 'logs', 'lxc', 'maint-prune-images', 'memory', 'node', 'proxmox', 'proxmox://', 'prune', 'recovery', 'rem-restart-lxc', 'rem-restart-vm', 'rem-stop-container', 'rem-stop-vm', 'resource', 'restart', 'since', 'snapname', 'snapshot', 'space', 'state', 'status', 'stop', 'timeout', 'vm', 'vmid', 'vmstate']

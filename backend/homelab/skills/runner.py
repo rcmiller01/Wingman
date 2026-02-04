@@ -25,6 +25,7 @@ from homelab.adapters import docker_adapter, proxmox_adapter
 from homelab.policy.policy_engine import policy_engine
 from homelab.storage.database import async_session_maker
 from homelab.storage.models import ActionHistory, ActionStatus, ActionTemplate
+from homelab.storage.audit_chain import prepare_chained_entry
 
 from .models import (
     Skill,
@@ -343,11 +344,15 @@ class SkillRunner:
                     result=audit_result,
                     error=f"Rejected by {execution.rejected_by}: {execution.rejection_reason or 'No reason provided'}",
                 )
+                
+                # Add to hash chain for tamper resistance
+                await prepare_chained_entry(db, action)
+                
                 db.add(action)
                 await db.commit()
                 
                 execution.action_history_id = action.id
-                self._add_log(execution, f"Rejection recorded to ActionHistory: {action.id}")
+                self._add_log(execution, f"Rejection recorded to ActionHistory: {action.id} (chain seq: {action.sequence_num})")
                 
         except Exception as e:
             logger.error(f"[SkillRunner] Failed to record rejection to ActionHistory: {e}")
@@ -714,11 +719,15 @@ class SkillRunner:
                     result=audit_result,
                     error=execution.error,
                 )
+                
+                # SECURITY: Add to hash chain for tamper resistance
+                await prepare_chained_entry(db, action)
+                
                 db.add(action)
                 await db.commit()
                 
                 execution.action_history_id = action.id
-                self._add_log(execution, f"Recorded to ActionHistory: {action.id}")
+                self._add_log(execution, f"Recorded to ActionHistory: {action.id} (chain seq={action.sequence_num})")
                 
         except Exception as e:
             logger.error(f"[SkillRunner] Failed to record ActionHistory: {e}")

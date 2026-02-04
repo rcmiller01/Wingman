@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\docker\api\volume.py
+# hypothesis_version: 6.137.1
+
+['/volumes', '/volumes/create', '/volumes/prune', '/volumes/{0}', '1.23', '1.25', 'Driver', 'DriverOpts', 'Labels', 'Name', 'filters', 'force']

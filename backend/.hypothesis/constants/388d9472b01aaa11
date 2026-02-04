@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\trio\_highlevel_serve_listeners.py
+# hypothesis_version: 6.137.1
+
+[0.1, 'ListenerT', 'StreamT', 'trio.serve_listeners']

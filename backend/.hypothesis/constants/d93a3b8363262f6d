@@ -1,0 +1,4 @@
+# file: C:\Users\rober\AppData\Roaming\Python\Python313\site-packages\qdrant_client\migrate\migrate.py
+# hypothesis_version: 6.137.1
+
+[3.0, 100, 'sharding_method']
