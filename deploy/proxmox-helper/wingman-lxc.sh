@@ -9,6 +9,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+KNOWLEDGE_TAR="$(mktemp /tmp/wingman-knowledge.tar.gz.XXXXXX)"
+trap 'rm -f "${KNOWLEDGE_TAR}"' EXIT
+
 get_default_storage() {
   pvesm status -content rootdir | awk 'NR==2 {print $1}'
 }
@@ -123,6 +126,14 @@ pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/update.sh" /root/update.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/backup.sh" /root/backup.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/restore.sh" /root/restore.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/smoke.sh" /root/smoke.sh
+
+if [[ -d "${REPO_ROOT}/knowledge" ]]; then
+  tar -C "${REPO_ROOT}" -czf "${KNOWLEDGE_TAR}" knowledge
+  pct push "${CTID}" "${KNOWLEDGE_TAR}" /root/knowledge.tgz
+  pct exec "${CTID}" -- bash -c "mkdir -p /opt/wingman/knowledge && tar -xzf /root/knowledge.tgz -C /opt/wingman"
+else
+  echo "Warning: knowledge directory not found; skipping knowledge copy."
+fi
 
 pct exec "${CTID}" -- bash /root/install_inside.sh
 

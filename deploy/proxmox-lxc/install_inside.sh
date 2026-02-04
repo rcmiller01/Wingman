@@ -71,7 +71,7 @@ fi
 
 install_docker
 
-mkdir -p /opt/wingman/deploy /opt/wingman/data
+mkdir -p /opt/wingman/deploy /opt/wingman/data /opt/wingman/knowledge
 
 if [[ -f /root/wingman-compose.yml ]]; then
   cp /root/wingman-compose.yml /opt/wingman/deploy/docker-compose.yml
@@ -185,6 +185,7 @@ echo "Generated Postgres password saved in /opt/wingman/deploy/.env."
 
 cat > /opt/wingman/deploy/.env <<ENV
 EXECUTION_MODE=${EXECUTION_MODE}
+WINGMAN_EXECUTION_MODE=${EXECUTION_MODE}
 ALLOW_CLOUD_LLM=${ALLOW_CLOUD_LLM}
 PROXMOX_HOST=${PROXMOX_URL}
 PROXMOX_VERIFY_SSL=${PROXMOX_VERIFY_SSL}
