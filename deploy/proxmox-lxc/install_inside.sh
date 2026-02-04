@@ -223,7 +223,7 @@ docker compose --env-file .env up -d --build
 
 echo "Waiting for API health..."
 for _ in {1..40}; do
-  if curl -fsS http://localhost:8000/api/health >/dev/null; then
+  if curl -fsS http://localhost:8000/api/health/ready >/dev/null; then
     break
   fi
   sleep 5
