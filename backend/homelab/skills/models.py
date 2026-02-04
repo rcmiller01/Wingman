@@ -27,6 +27,7 @@ class SkillExecutionStatus(str, Enum):
     """Status of a skill execution."""
     pending_approval = "pending_approval"
     approved = "approved"
+    rejected = "rejected"  # Explicitly rejected by approver
     executing = "executing"
     pending_audit = "pending_audit"  # For high-risk, waiting for judge
     completed = "completed"
@@ -70,6 +71,9 @@ class SkillExecution:
     created_at: datetime
     approved_at: datetime | None = None
     approved_by: str | None = None
+    rejected_at: datetime | None = None
+    rejected_by: str | None = None
+    rejection_reason: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
     
@@ -140,6 +144,12 @@ class SkillApprovalRequest(BaseModel):
     """Request to approve a skill execution."""
     approved_by: str = Field(..., description="Username approving the execution")
     comment: str | None = Field(None, description="Optional approval comment")
+
+
+class SkillRejectionRequest(BaseModel):
+    """Request to reject a skill execution."""
+    rejected_by: str = Field(..., description="Username rejecting the execution")
+    reason: str | None = Field(None, description="Optional rejection reason")
 
 
 class SkillSuggestionRequest(BaseModel):

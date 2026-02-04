@@ -7,6 +7,7 @@ Endpoints:
 - POST /api/skills/suggest - Get skill suggestions for symptoms
 - POST /api/skills/{id}/run - Create skill execution request
 - POST /api/skills/executions/{id}/approve - Approve pending execution
+- POST /api/skills/executions/{id}/reject - Reject pending execution
 - POST /api/skills/executions/{id}/execute - Execute approved skill
 - GET /api/skills/executions - List executions
 - GET /api/skills/executions/{id} - Get execution details
@@ -31,6 +32,7 @@ from homelab.skills.models import (
     SkillRunRequest,
     SkillExecutionResponse,
     SkillApprovalRequest,
+    SkillRejectionRequest,
     SkillSuggestionRequest,
     SkillSuggestionResponse,
 )
@@ -229,6 +231,41 @@ async def approve_execution(execution_id: str, request: SkillApprovalRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.post("/executions/{execution_id}/reject")
+async def reject_execution(execution_id: str, request: SkillRejectionRequest):
+    """
+    Reject a pending skill execution.
+    
+    This creates an audit trail entry and prevents future execution.
+    
+    Idempotent behavior:
+    - reject on PENDING_APPROVAL → transitions to REJECTED, returns 200
+    - reject on REJECTED → returns current state, 200 (no-op)
+    - reject on APPROVED/EXECUTING/COMPLETED → returns 409 Conflict
+    """
+    try:
+        execution = await skill_runner.reject(
+            execution_id=execution_id,
+            rejected_by=request.rejected_by,
+            reason=request.reason,
+        )
+        
+        return {
+            "execution_id": execution.id,
+            "status": execution.status.value,
+            "rejected_by": execution.rejected_by,
+            "rejected_at": execution.rejected_at.isoformat() if execution.rejected_at else None,
+            "rejection_reason": execution.rejection_reason,
+            "message": "Execution rejected",
+            "action_history_id": execution.action_history_id,
+        }
+    except ValueError as e:
+        # Check if it's a conflict (cannot reject after approval)
+        if "Cannot reject" in str(e):
+            raise HTTPException(status_code=409, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @router.post("/executions/{execution_id}/execute")
 async def execute_skill(execution_id: str):
     """
@@ -313,6 +350,9 @@ async def get_execution(execution_id: str):
         "created_at": execution.created_at.isoformat(),
         "approved_at": execution.approved_at.isoformat() if execution.approved_at else None,
         "approved_by": execution.approved_by,
+        "rejected_at": execution.rejected_at.isoformat() if execution.rejected_at else None,
+        "rejected_by": execution.rejected_by,
+        "rejection_reason": execution.rejection_reason,
         "started_at": execution.started_at.isoformat() if execution.started_at else None,
         "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
         "logs": execution.logs,

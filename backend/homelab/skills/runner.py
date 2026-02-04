@@ -43,6 +43,39 @@ MAX_LOG_ENTRIES = 1000  # Cap execution logs
 # Input validation
 _TARGET_PATTERN = re.compile(r'^(docker|proxmox)://[a-zA-Z0-9][a-zA-Z0-9_./-]*$')
 
+# Jinja2 template denylist - prevent sandbox escape vectors
+# These patterns could be used to escape the sandbox and access Python internals
+TEMPLATE_DENYLIST = frozenset([
+    '__class__',
+    '__mro__',
+    '__subclasses__',
+    '__globals__',
+    '__builtins__',
+    '__import__',
+    '__code__',
+    '__getattribute__',
+    '__reduce__',
+    'mro()',
+    'subclasses()',
+])
+
+
+def _validate_template_safety(template: str) -> tuple[bool, str | None]:
+    """
+    Check template for dangerous patterns that could escape Jinja2 sandbox.
+    
+    Returns (is_safe, violation_message).
+    
+    Note: This is defense-in-depth. The Jinja2 SandboxedEnvironment is the
+    primary security control. This denylist catches obvious escape attempts
+    that might bypass sandbox restrictions.
+    """
+    template_lower = template.lower()
+    for pattern in TEMPLATE_DENYLIST:
+        if pattern.lower() in template_lower:
+            return False, f"Template contains forbidden pattern: {pattern}"
+    return True, None
+
 
 def _compute_skill_hash(skill: Skill) -> str:
     """Compute a hash of the skill definition for audit trail."""
@@ -201,6 +234,125 @@ class SkillRunner:
         logger.info(f"[SkillRunner] Execution {execution_id} approved by {approved_by}")
         return execution
     
+    async def reject(
+        self,
+        execution_id: str,
+        rejected_by: str,
+        reason: str | None = None,
+    ) -> SkillExecution:
+        """
+        Reject a pending skill execution.
+        
+        AUDIT: Creates an ActionHistory entry for the rejection event.
+        
+        Idempotent behavior:
+        - reject on PENDING_APPROVAL → ok, transition to REJECTED
+        - reject on REJECTED → return current state (no-op)
+        - reject on APPROVED/EXECUTING/COMPLETED → 409 Conflict
+        """
+        if not rejected_by or len(rejected_by) < 1:
+            raise ValueError("rejected_by is required")
+        
+        execution = self._executions.get(execution_id)
+        if not execution:
+            raise ValueError(f"Execution not found: {execution_id}")
+        
+        # Idempotent: already rejected → return current state
+        if execution.status == SkillExecutionStatus.rejected:
+            self._add_log(execution, f"Rejection already recorded (by {execution.rejected_by})")
+            return execution
+        
+        # Cannot reject after approval/execution
+        terminal_states = {
+            SkillExecutionStatus.approved,
+            SkillExecutionStatus.executing,
+            SkillExecutionStatus.pending_audit,
+            SkillExecutionStatus.completed,
+            SkillExecutionStatus.failed,
+            SkillExecutionStatus.retrying,
+            SkillExecutionStatus.escalated,
+        }
+        if execution.status in terminal_states:
+            raise ValueError(
+                f"Cannot reject execution in '{execution.status.value}' state. "
+                "Rejection is only valid for pending_approval status."
+            )
+        
+        # Apply rejection
+        execution.status = SkillExecutionStatus.rejected
+        execution.rejected_at = datetime.utcnow()
+        execution.rejected_by = rejected_by
+        execution.rejection_reason = reason
+        
+        self._add_log(execution, f"REJECTED by: {rejected_by}")
+        if reason:
+            self._add_log(execution, f"Rejection reason: {reason}")
+        
+        logger.info(f"[SkillRunner] Execution {execution_id} rejected by {rejected_by}: {reason}")
+        
+        # Record to ActionHistory for complete audit trail
+        skill = skill_registry.get(execution.skill_id)
+        if skill:
+            await self._record_rejection_history(skill, execution)
+        
+        return execution
+    
+    async def _record_rejection_history(
+        self,
+        skill: Skill,
+        execution: SkillExecution,
+    ) -> None:
+        """Record a rejection event to ActionHistory for audit trail."""
+        try:
+            # Map skill to action template
+            action_mapping = {
+                "rem-restart-container": ActionTemplate.restart_resource,
+                "rem-restart-vm": ActionTemplate.restart_resource,
+                "rem-restart-lxc": ActionTemplate.restart_resource,
+                "rem-stop-container": ActionTemplate.stop_resource,
+                "rem-stop-vm": ActionTemplate.stop_resource,
+                "diag-container-logs": ActionTemplate.collect_diagnostics,
+                "diag-container-inspect": ActionTemplate.collect_diagnostics,
+                "diag-vm-status": ActionTemplate.collect_diagnostics,
+                "maint-prune-images": ActionTemplate.collect_diagnostics,
+                "maint-create-snapshot": ActionTemplate.create_snapshot,
+            }
+            
+            action_template = action_mapping.get(skill.meta.id, ActionTemplate.collect_diagnostics)
+            
+            audit_result = {
+                "event": "skill_rejected",
+                "skill_id": skill.meta.id,
+                "skill_hash": _compute_skill_hash(skill),
+                "skill_risk": skill.meta.risk.value,
+                "execution_id": execution.id,
+                "rejected_by": execution.rejected_by,
+                "rejection_reason": execution.rejection_reason,
+                "execution_logs": execution.logs[-50:],  # Last 50 log entries
+            }
+            
+            async with async_session_maker() as db:
+                action = ActionHistory(
+                    incident_id=execution.incident_id,
+                    action_template=action_template,
+                    target_resource=execution.target,
+                    parameters=execution.parameters,
+                    status=ActionStatus.failed,  # Rejected = not executed
+                    requested_at=execution.created_at,
+                    completed_at=execution.rejected_at,
+                    result=audit_result,
+                    error=f"Rejected by {execution.rejected_by}: {execution.rejection_reason or 'No reason provided'}",
+                )
+                db.add(action)
+                await db.commit()
+                
+                execution.action_history_id = action.id
+                self._add_log(execution, f"Rejection recorded to ActionHistory: {action.id}")
+                
+        except Exception as e:
+            logger.error(f"[SkillRunner] Failed to record rejection to ActionHistory: {e}")
+            self._add_log(execution, f"WARNING: Failed to record rejection to ActionHistory: {e}")
+    
     async def execute(self, execution_id: str) -> SkillExecution:
         """
         Execute an approved skill.
@@ -321,6 +473,12 @@ class SkillRunner:
         """Execute the skill against the target infrastructure."""
         target = execution.target
         params = execution.parameters
+        
+        # SECURITY: Validate template doesn't contain sandbox escape patterns
+        is_safe, violation = _validate_template_safety(skill.template)
+        if not is_safe:
+            self._add_log(execution, f"SECURITY: Template validation failed: {violation}")
+            raise ValueError(f"Template security violation: {violation}")
         
         # Use sandboxed Jinja2 environment for template rendering
         env = sandbox.SandboxedEnvironment()
