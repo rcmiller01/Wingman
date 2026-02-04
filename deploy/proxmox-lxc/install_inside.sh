@@ -135,6 +135,19 @@ if [[ ! -e /opt/wingman/deploy/secrets ]]; then
   ln -s /run/secrets/wingman /opt/wingman/deploy/secrets
 fi
 
+SECRETS_DIR="/run/secrets/wingman"
+SECRET_FILES=(
+  "wingman_auth_secret"
+  "proxmox_api_token"
+  "proxmox_user"
+  "proxmox_password"
+  "proxmox_token_name"
+)
+for secret_file in "${SECRET_FILES[@]}"; do
+  touch "${SECRETS_DIR}/${secret_file}"
+  chmod 600 "${SECRETS_DIR}/${secret_file}"
+done
+
 read -r -s -p "Wingman auth secret (required, will not echo): " WINGMAN_AUTH_SECRET_INPUT
 printf "\n"
 if [[ -z "${WINGMAN_AUTH_SECRET_INPUT}" ]]; then
@@ -167,6 +180,9 @@ else
   fi
 fi
 
+POSTGRES_PASSWORD="$(openssl rand -hex 32)"
+echo "Generated Postgres password saved in /opt/wingman/deploy/.env."
+
 cat > /opt/wingman/deploy/.env <<ENV
 EXECUTION_MODE=${EXECUTION_MODE}
 ALLOW_CLOUD_LLM=${ALLOW_CLOUD_LLM}
@@ -175,6 +191,7 @@ PROXMOX_VERIFY_SSL=${PROXMOX_VERIFY_SSL}
 PUBLIC_API_URL=${PUBLIC_API_URL_DEFAULT}
 PUBLIC_UI_URL=${PUBLIC_UI_URL_DEFAULT}
 AUTH_ENABLED=true
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 WINGMAN_ALLOW_DANGEROUS_OPS=${ALLOW_DANGEROUS_OPS}
 WINGMAN_READ_ONLY=${READ_ONLY}
 ENV
