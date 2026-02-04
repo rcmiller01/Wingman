@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { LogViewer } from '../../../../components/logs/LogViewer';
-import { getApiUrl } from '@/lib/api-config';
+import { getApiUrl } from '@/utils/api';
 
 interface DockerContainer {
     id: string;
@@ -34,7 +34,7 @@ export default function ContainerDetailPage() {
 
         async function fetchContainer() {
             try {
-                const res = await fetch(getApiUrl(`/api/inventory/containers/${id}`));
+                const res = await fetch(getApiUrl(`/inventory/containers/${id}`));
                 if (!res.ok) throw new Error('Container not found');
                 const data = await res.json();
                 setContainer(data);

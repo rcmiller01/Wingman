@@ -1,108 +1,86 @@
-
-import asyncio
-import sys
 import os
-from unittest.mock import MagicMock, AsyncMock, patch
+import sys
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
 
 # Add backend to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 
-# 1. Mock dependencies BEFORE importing application code to avoid side effects
-sys.modules["homelab.llm.providers"] = MagicMock()
-sys.modules["homelab.rag.rag_indexer"] = MagicMock()
-sys.modules["homelab.rag.log_summarizer"] = MagicMock()
-sys.modules["homelab.config"] = MagicMock()
-sys.modules["homelab.storage.database"] = MagicMock()
-sys.modules["homelab.rag.narrative_generator"] = MagicMock()
-sys.modules["homelab.notifications.router"] = MagicMock()
-sys.modules["homelab.control_plane.incident_detector"] = MagicMock()
-sys.modules["homelab.storage"] = MagicMock()
-sys.modules["homelab.storage.models"] = MagicMock()
-sys.modules["homelab.adapters"] = MagicMock()
-sys.modules["homelab.collectors"] = MagicMock()
-# Mock entire packages safely
-sys.modules["homelab.adapters.proxmox"] = MagicMock()
-sys.modules["homelab.collectors.log_collector"] = MagicMock()
-sys.modules["homelab.collectors.fact_collector"] = MagicMock()
+from homelab.api import incidents as incidents_api
+from homelab.api import rag as rag_api
+from homelab.llm.providers import EmbeddingBlockedError
 
-# 2. Now import the functions to test
-try:
-    from homelab.api.rag import search_rag, SearchRequest, check_health
-    from homelab.api.incidents import analyze_incident
-    from homelab.llm.providers import EmbeddingBlockedError
-    from starlette.exceptions import HTTPException
-    from fastapi.responses import JSONResponse
-except ImportError as e:
-    print(f"ImportError during setup: {e}")
-    sys.exit(1)
 
-async def test_api_response_structure():
-    print("Testing API Response structure...")
-    
-    # 1. Test Search
-    print("- Testing Search API...")
-    # We need to access the mocked rag_indexer that api.rag imported
-    # Since we mocked sys.modules["homelab.rag.rag_indexer"], api.rag.rag_indexer is that mock
-    from homelab.api.rag import rag_indexer as mock_indexer_instance
-    
-    # Reset side effects
-    mock_indexer_instance.search_narratives.side_effect = EmbeddingBlockedError("Inconsistent state")
-    
-    # We also need to mock get_settings in config
-    from homelab.config import get_settings as mock_get_settings
-    mock_get_settings.return_value.rag_retry_after_seconds = 60
+def _assert_embedding_blocked_exception(exc: HTTPException) -> None:
+    assert exc.status_code == 503
+    assert exc.headers.get("Retry-After") == "60"
+    assert exc.detail.get("error") == "embedding_blocked"
+    assert "recovery" in exc.detail
 
-    try:
-        await search_rag(SearchRequest(query="test"))
-        print("FAIL: Search API did not raise HTTPException")
-    except HTTPException as e:
-        verify_503_exception(e, "Search API")
 
-    # 2. Test Health
-    print("- Testing Health API...")
-    from homelab.llm.providers import llm_manager as mock_llm_manager
-    mock_llm_manager.is_embedding_blocked.return_value = True
-    
-    response = await check_health()
-    
-    if not isinstance(response, JSONResponse):
-         print(f"FAIL: Health API returned wrong type: {type(response)}")
-    elif response.status_code != 503:
-         print(f"FAIL: Health API returned {response.status_code}")
-    else:
-         import json
-         body = json.loads(response.body)
-         if body.get("status") != "blocked":
-             print(f"FAIL: Health body mismatch: {body}")
-         else:
-             print("PASS: Health API (503 Blocked)")
+@pytest.mark.asyncio
+async def test_search_rag_returns_503_when_blocked(monkeypatch):
+    monkeypatch.setattr(
+        rag_api.rag_indexer,
+        "search_narratives",
+        AsyncMock(side_effect=EmbeddingBlockedError("Inconsistent state")),
+    )
+    monkeypatch.setattr(
+        rag_api,
+        "get_settings",
+        lambda: SimpleNamespace(rag_retry_after_seconds=60),
+    )
 
-    # 3. Test Analyze Incident
-    print("- Testing Analyze Incident API...")
-    from homelab.api.incidents import narrative_generator as mock_gen_instance
-    mock_gen_instance.generate_narrative.side_effect = EmbeddingBlockedError("Blocked")
-    
-    try:
-        await analyze_incident("inc-123", db=AsyncMock())
-        print("FAIL: Analyze API did not raise HTTPException")
-    except HTTPException as e:
-        verify_503_exception(e, "Analyze Incident API")
+    with pytest.raises(HTTPException) as exc_info:
+        await rag_api.search_rag(rag_api.SearchRequest(query="test"))
 
-def verify_503_exception(e, source):
-    if e.status_code != 503:
-        print(f"FAIL: {source} Wrong status code {e.status_code}")
-        return
-    
-    if "Retry-After" not in e.headers or e.headers["Retry-After"] != "60":
-        print(f"FAIL: {source} Wrong Retry-After header: {e.headers}")
-        return
-    
-    detail = e.detail
-    if detail.get("error") != "embedding_blocked" or "recovery" not in detail:
-            print(f"FAIL: {source} Invalid JSON body: {detail}")
-            return
-            
-    print(f"PASS: {source} verified")
+    _assert_embedding_blocked_exception(exc_info.value)
 
-if __name__ == "__main__":
-    asyncio.run(test_api_response_structure())
+
+@pytest.mark.asyncio
+async def test_rag_health_blocked(monkeypatch):
+    monkeypatch.setattr(rag_api.llm_manager, "is_embedding_blocked", MagicMock(return_value=True))
+    monkeypatch.setattr(
+        rag_api,
+        "get_settings",
+        lambda: SimpleNamespace(rag_retry_after_seconds=60),
+    )
+
+    response = await rag_api.check_health()
+
+    assert isinstance(response, JSONResponse)
+    assert response.status_code == 503
+    assert response.headers.get("Retry-After") == "60"
+    assert response.body is not None
+
+
+@pytest.mark.asyncio
+async def test_analyze_incident_returns_503_when_blocked(monkeypatch):
+    incident = SimpleNamespace(id="inc-123")
+    result = MagicMock()
+    result.scalars.return_value.first.return_value = incident
+
+    db = AsyncMock()
+    db.execute.return_value = result
+
+    monkeypatch.setattr(
+        incidents_api.narrative_generator,
+        "generate_narrative",
+        AsyncMock(side_effect=EmbeddingBlockedError("Blocked")),
+    )
+    import homelab.config as config_module
+
+    monkeypatch.setattr(
+        config_module,
+        "get_settings",
+        lambda: SimpleNamespace(rag_retry_after_seconds=60),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await incidents_api.analyze_incident("inc-123", db=db)
+
+    _assert_embedding_blocked_exception(exc_info.value)

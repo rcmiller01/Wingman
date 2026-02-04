@@ -285,7 +285,7 @@ class ControlPlane:
                     # Rate-limited logging for RAG blocks
                     now = datetime.utcnow()
                     if not self.last_rag_error_log or (now - self.last_rag_error_log).total_seconds() > 300: # 5 minutes
-                        print(f"[ControlPlane] WARNING: RAG blocked due to consistent state. Background tasks paused.")
+                        print(f"[ControlPlane] WARNING: RAG blocked due to inconsistent state. Background tasks paused.")
                         self.last_rag_error_log = now
                     # Else: suppress log spam
                 
