@@ -3,6 +3,7 @@
 import os
 from os.path import dirname, abspath, join
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 from functools import lru_cache
 from dotenv import load_dotenv
 
@@ -54,6 +55,7 @@ class Settings(BaseSettings):
     # Proxmox (optional)
     proxmox_host: str | None = None
     proxmox_user: str | None = None
+    proxmox_password: str | None = None
     proxmox_token_name: str | None = None
     proxmox_token_value: str | None = None
     proxmox_verify_ssl: bool = False
@@ -94,6 +96,48 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     s = Settings()
+    secrets_path = Path("/run/secrets")
+
+    def _read_secret(secret_name: str) -> str | None:
+        secret_file = secrets_path / secret_name
+        if secret_file.exists():
+            return secret_file.read_text().strip()
+        return None
+
+    # Docker secrets: proxmox api token or individual fields
+    if secrets_path.exists():
+        if not s.proxmox_user:
+            proxmox_user = _read_secret("proxmox_user")
+            if proxmox_user:
+                s.proxmox_user = proxmox_user
+        if not s.proxmox_password:
+            proxmox_password = _read_secret("proxmox_password")
+            if proxmox_password:
+                s.proxmox_password = proxmox_password
+        if not s.proxmox_token_name:
+            proxmox_token_name = _read_secret("proxmox_token_name")
+            if proxmox_token_name:
+                s.proxmox_token_name = proxmox_token_name
+        if not s.proxmox_token_value:
+            proxmox_token_value = _read_secret("proxmox_token_value")
+            if proxmox_token_value:
+                s.proxmox_token_value = proxmox_token_value
+
+        proxmox_api_token = _read_secret("proxmox_api_token")
+        if proxmox_api_token and not s.proxmox_token_value:
+            # Supports "user@realm!tokenname:tokenvalue" or raw token value
+            if ":" in proxmox_api_token and "!" in proxmox_api_token:
+                token_id, token_value = proxmox_api_token.split(":", 1)
+                s.proxmox_token_value = token_value.strip()
+                if "!" in token_id:
+                    user, token_name = token_id.split("!", 1)
+                    if not s.proxmox_user:
+                        s.proxmox_user = user.strip()
+                    if not s.proxmox_token_name:
+                        s.proxmox_token_name = token_name.strip()
+            else:
+                s.proxmox_token_value = proxmox_api_token.strip()
+
     # Mask password for security in logs
     safe_url = s.database_url.split("@")[-1] if "@" in s.database_url else s.database_url
     if s.debug:
