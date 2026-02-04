@@ -60,8 +60,24 @@ class ProxmoxAdapter:
                     except Exception as e:
                         self._last_error = str(e)
                         logger.error("[ProxmoxAdapter] Connection verification failed: %s", e)
+                elif settings.proxmox_password:
+                    self.api = ProxmoxAPI(
+                        host,
+                        port=port,
+                        user=settings.proxmox_user,
+                        password=settings.proxmox_password,
+                        verify_ssl=settings.proxmox_verify_ssl,
+                        timeout=10
+                    )
+                    try:
+                        self.api.nodes.get()
+                        self._connected = True
+                        logger.info("[ProxmoxAdapter] Connected to Proxmox successfully")
+                    except Exception as e:
+                        self._last_error = str(e)
+                        logger.error("[ProxmoxAdapter] Connection verification failed: %s", e)
                 else:
-                    self._last_error = "Missing token name or value"
+                    self._last_error = "Missing token name/value or password"
                     logger.error("[ProxmoxAdapter] %s", self._last_error)
             except Exception as e:
                 self._last_error = str(e)

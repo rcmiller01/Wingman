@@ -6,14 +6,15 @@ configuration, troubleshooting, and maintenance procedures.
 ## Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Execution Modes](#execution-modes)
-3. [Authentication & Authorization](#authentication--authorization)
-4. [Allowlists & Safety](#allowlists--safety)
-5. [Key Rotation](#key-rotation)
-6. [Audit Chain Verification](#audit-chain-verification)
-7. [Retention & Cleanup](#retention--cleanup)
-8. [Test Stack Operations](#test-stack-operations)
-9. [Troubleshooting](#troubleshooting)
+2. [Deployable Homelab Release (Proxmox)](#deployable-homelab-release-proxmox)
+3. [Execution Modes](#execution-modes)
+4. [Authentication & Authorization](#authentication--authorization)
+5. [Allowlists & Safety](#allowlists--safety)
+6. [Key Rotation](#key-rotation)
+7. [Audit Chain Verification](#audit-chain-verification)
+8. [Retention & Cleanup](#retention--cleanup)
+9. [Test Stack Operations](#test-stack-operations)
+10. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -42,10 +43,12 @@ npm run dev
 ./scripts/test-stack.sh up    # Linux/Mac
 
 # Run backend in integration mode
+$env:EXECUTION_MODE = "integration"
 $env:WINGMAN_EXECUTION_MODE = "integration"
 python -m uvicorn homelab.main:app --reload --port 8000
 
 # Run integration tests
+$env:EXECUTION_MODE = "integration"
 $env:WINGMAN_EXECUTION_MODE = "integration"
 pytest tests/ -v -k integration
 ```
@@ -56,6 +59,7 @@ pytest tests/ -v -k integration
 # CAUTION: This affects real infrastructure
 
 # 1. Set execution mode
+$env:EXECUTION_MODE = "lab"
 $env:WINGMAN_EXECUTION_MODE = "lab"
 
 # 2. Configure allowlists (REQUIRED)
@@ -64,11 +68,96 @@ $env:WINGMAN_VM_ALLOWLIST = "100,101,102"
 $env:WINGMAN_NODE_ALLOWLIST = "pve1,pve2"
 
 # 3. Enable auth (recommended)
-$env:WINGMAN_AUTH_ENABLED = "true"
+$env:AUTH_ENABLED = "true"
 $env:WINGMAN_AUTH_SECRET = "your-secure-secret-key-here"
 
 # 4. Start backend
 python -m uvicorn homelab.main:app --port 8000
+```
+
+---
+
+## Deployable Homelab Release (Proxmox)
+
+### One-Command Deploy
+
+```bash
+cp deploy/.env.example deploy/.env
+mkdir -p deploy/secrets
+
+# Create secrets (required)
+python - <<'PY' > deploy/secrets/wingman_auth_secret
+import secrets
+print(secrets.token_hex(32))
+PY
+
+# Proxmox secrets (choose one method)
+# Option A: API token (format: user@realm!tokenname:tokenvalue)
+echo "root@pam!wingman:YOUR_TOKEN_VALUE" > deploy/secrets/proxmox_api_token
+: > deploy/secrets/proxmox_user
+: > deploy/secrets/proxmox_password
+: > deploy/secrets/proxmox_token_name
+
+# Option B: User/password (set all three files)
+: > deploy/secrets/proxmox_api_token
+echo "root@pam" > deploy/secrets/proxmox_user
+echo "YOUR_PASSWORD" > deploy/secrets/proxmox_password
+echo "" > deploy/secrets/proxmox_token_name
+
+# Start Wingman
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+> **Note:** If you are not using Proxmox yet, create empty secret files for
+> `proxmox_api_token`, `proxmox_user`, `proxmox_password`, and `proxmox_token_name`.
+
+### deploy/.env Reference
+
+See `deploy/.env.example` for all options. The defaults are safe-by-default:
+
+- `EXECUTION_MODE=lab` and `WINGMAN_EXECUTION_MODE=lab` (LAB mode fail-closed)
+- Cloud LLM API keys unset
+- Auth enabled with Docker secrets
+
+### Migrations & Upgrades
+
+Migrations run automatically on backend startup. For manual migration:
+
+```bash
+docker compose -f deploy/docker-compose.yml exec backend alembic upgrade head
+```
+
+Upgrade procedure:
+
+```bash
+git pull
+docker compose -f deploy/docker-compose.yml up -d --build
+```
+
+### Backup & Restore
+
+```bash
+# Backup (Postgres + Qdrant)
+./deploy/backup.sh
+
+# Restore (pass backup dir)
+./deploy/restore.sh deploy/backups/<timestamp>
+```
+
+### Smoke Test
+
+```bash
+# Optionally set API_KEY if auth is enabled and you want a non-dev key
+export POSTGRES_PASSWORD=changeme
+./scripts/smoke_live.sh
+```
+
+### Metrics
+
+Wingman exposes a minimal Prometheus endpoint:
+
+```
+GET /api/health/metrics
 ```
 
 ---
@@ -87,7 +176,7 @@ Wingman has three execution modes that determine safety policies:
 
 Mode is determined by:
 
-1. **Environment variable**: `WINGMAN_EXECUTION_MODE=mock|integration|lab`
+1. **Environment variable**: `EXECUTION_MODE=mock|integration|lab`
 2. **Auto-detection**:
    - In pytest → mock
    - In CI → integration
@@ -123,7 +212,7 @@ print(execution_mode_manager.get_status())
 
 ### API Keys
 
-**Development keys** (only work when `WINGMAN_AUTH_ENABLED=false`):
+**Development keys** (only work when `AUTH_ENABLED=false`):
 
 ```
 wm_dev_viewer_key   → viewer role
@@ -146,7 +235,7 @@ curl -H "X-API-Key: YOUR_KEY" http://localhost:8000/api/auth/whoami
 
 ```bash
 # Required for production
-$env:WINGMAN_AUTH_ENABLED = "true"
+$env:AUTH_ENABLED = "true"
 
 # Set a secure secret (generate with: python -c "import secrets; print(secrets.token_hex(32))")
 $env:WINGMAN_AUTH_SECRET = "your-64-char-hex-secret"
@@ -162,10 +251,12 @@ LAB mode **requires** allowlists. Without them, LAB mode is blocked:
 
 ```bash
 # This will FAIL (no allowlists)
+$env:EXECUTION_MODE = "lab"
 $env:WINGMAN_EXECUTION_MODE = "lab"
 # Error: LAB mode requested but no allowlists configured
 
 # This works
+$env:EXECUTION_MODE = "lab"
 $env:WINGMAN_EXECUTION_MODE = "lab"
 $env:WINGMAN_CONTAINER_ALLOWLIST = "nginx,redis,my-app-*"
 ```
@@ -450,7 +541,7 @@ for violation in report['violations']:
 **Symptom**: 401 Unauthorized
 
 **Checks**:
-1. Is auth enabled? `$env:WINGMAN_AUTH_ENABLED`
+1. Is auth enabled? `$env:AUTH_ENABLED`
 2. Using dev keys with auth enabled? (dev keys only work when disabled)
 3. Header correct? `X-API-Key: your-key` or `Authorization: Bearer token`
 
@@ -460,9 +551,9 @@ for violation in report['violations']:
 
 Before going live:
 
-- [ ] Set `WINGMAN_EXECUTION_MODE=lab`
+- [ ] Set `EXECUTION_MODE=lab` and `WINGMAN_EXECUTION_MODE=lab`
 - [ ] Configure allowlists for your infrastructure
-- [ ] Set `WINGMAN_AUTH_ENABLED=true`
+- [ ] Set `AUTH_ENABLED=true`
 - [ ] Set secure `WINGMAN_AUTH_SECRET`
 - [ ] Create real user accounts (not dev keys)
 - [ ] Verify test stack works: `test-stack.ps1 health`
