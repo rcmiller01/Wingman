@@ -129,7 +129,19 @@ pct exec "${CTID}" -- bash /root/install_inside.sh
 CONTAINER_IP="$(pct exec "${CTID}" -- bash -c "ip -4 -o addr show dev eth0 | awk '{print \$4}' | cut -d/ -f1")"
 
 echo ""
-echo "Wingman appliance is ready."
-echo "IP: ${CONTAINER_IP}"
-echo "UI: http://${CONTAINER_IP}:3000"
-echo "API: http://${CONTAINER_IP}:8000"
+cat <<EOF
+============================================================
+Wingman appliance is ready
+CTID: ${CTID}
+IP: ${CONTAINER_IP}
+
+UI:     http://${CONTAINER_IP}:3000
+API:    http://${CONTAINER_IP}:8000
+Health: http://${CONTAINER_IP}:8000/api/health/ready
+
+Update:  pct exec ${CTID} -- bash /root/update.sh
+Backup:  pct exec ${CTID} -- bash /root/backup.sh
+Restore: pct exec ${CTID} -- bash /root/restore.sh /opt/wingman/backups/<timestamp>
+Wipe:    pct stop ${CTID} && pct destroy ${CTID}
+============================================================
+EOF
