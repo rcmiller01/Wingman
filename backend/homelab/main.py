@@ -16,6 +16,7 @@ from homelab.api.plans import router as plans_router
 from homelab.api.rag import router as rag_router
 from homelab.api.todos import router as todos_router
 from homelab.api.settings import router as settings_router
+from homelab.api.skills import router as skills_router
 from homelab.scheduler import start_scheduler, stop_scheduler
 from homelab.rag.rag_indexer import rag_indexer
 from homelab.llm.providers import llm_manager
@@ -85,6 +86,7 @@ app.include_router(plans_router)
 app.include_router(rag_router)
 app.include_router(todos_router)
 app.include_router(settings_router)
+app.include_router(skills_router)
 
 
 @app.get("/")

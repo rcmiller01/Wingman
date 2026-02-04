@@ -190,14 +190,17 @@ class TestDestructiveOperationGuards:
 
     def test_recreate_blocked_without_env_flag(self):
         """Recreate collections fails without ALLOW_DESTRUCTIVE_ACTIONS=true."""
+        import sys
+        import importlib
+        
         with patch.dict(os.environ, {"ALLOW_DESTRUCTIVE_ACTIONS": "false"}):
-            import importlib
-            import homelab.rag.rag_indexer as indexer_module
-
-            importlib.reload(indexer_module)
-
+            # Force module reload by removing it from cache
+            if "homelab.rag.rag_indexer" in sys.modules:
+                del sys.modules["homelab.rag.rag_indexer"]
+            
             # Mock QdrantClient to avoid real connections
             with patch("homelab.rag.rag_indexer.QdrantClient"):
+                # Import fresh to pick up env change
                 from homelab.rag.rag_indexer import RAGIndexer
 
                 indexer = RAGIndexer()

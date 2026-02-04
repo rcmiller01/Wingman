@@ -1,11 +1,17 @@
 """Proxmox adapter for VM/LXC management."""
 
+import asyncio
 import logging
+import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from homelab.config import get_settings
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
+# Thread pool for running sync proxmoxer calls without blocking event loop
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="proxmox")
 
 
 class ProxmoxAdapter:
@@ -202,54 +208,85 @@ class ProxmoxAdapter:
             return None
 
     async def start_resource(self, node: str, vmtype: str, vmid: int) -> bool:
-        """Start a VM or LXC."""
+        """Start a VM or LXC. Runs sync API in thread pool to avoid blocking."""
         if not self.api:
             return False
         
-        try:
+        # Validate inputs
+        if vmtype not in ("qemu", "lxc"):
+            logger.error("[ProxmoxAdapter] Invalid vmtype: %s", vmtype)
+            return False
+        if not isinstance(vmid, int) or vmid < 0:
+            logger.error("[ProxmoxAdapter] Invalid vmid: %s", vmid)
+            return False
+        
+        def _sync_start():
             if vmtype == "qemu":
                 self.api.nodes(node).qemu(vmid).status.start.post()
-            elif vmtype == "lxc":
-                self.api.nodes(node).lxc(vmid).status.start.post()
             else:
-                return False
+                self.api.nodes(node).lxc(vmid).status.start.post()
+        
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(_executor, _sync_start)
             return True
         except Exception as e:
             logger.error("[ProxmoxAdapter] Error starting %s/%s: %s", vmtype, vmid, e)
             return False
 
     async def stop_resource(self, node: str, vmtype: str, vmid: int) -> bool:
-        """Stop a VM or LXC (shutdown)."""
+        """Stop a VM or LXC (shutdown). Runs sync API in thread pool."""
         if not self.api:
             return False
         
-        try:
+        # Validate inputs
+        if vmtype not in ("qemu", "lxc"):
+            logger.error("[ProxmoxAdapter] Invalid vmtype: %s", vmtype)
+            return False
+        if not isinstance(vmid, int) or vmid < 0:
+            logger.error("[ProxmoxAdapter] Invalid vmid: %s", vmid)
+            return False
+        
+        def _sync_stop():
             if vmtype == "qemu":
                 self.api.nodes(node).qemu(vmid).status.shutdown.post()
-            elif vmtype == "lxc":
-                self.api.nodes(node).lxc(vmid).status.shutdown.post()
             else:
-                return False
+                self.api.nodes(node).lxc(vmid).status.shutdown.post()
+        
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(_executor, _sync_stop)
             return True
         except Exception as e:
             logger.error("[ProxmoxAdapter] Error stopping %s/%s: %s", vmtype, vmid, e)
             return False
 
     async def reboot_resource(self, node: str, vmtype: str, vmid: int) -> bool:
-        """Reboot/Restart a VM or LXC."""
+        """Reboot/Restart a VM or LXC. Runs sync API in thread pool."""
         if not self.api:
             return False
         
-        try:
+        # Validate inputs
+        if vmtype not in ("qemu", "lxc"):
+            logger.error("[ProxmoxAdapter] Invalid vmtype: %s", vmtype)
+            return False
+        if not isinstance(vmid, int) or vmid < 0:
+            logger.error("[ProxmoxAdapter] Invalid vmid: %s", vmid)
+            return False
+        
+        def _sync_reboot():
             if vmtype == "qemu":
                 self.api.nodes(node).qemu(vmid).status.reboot.post()
-            elif vmtype == "lxc":
-                self.api.nodes(node).lxc(vmid).status.reboot.post()
             else:
-                return False
+                self.api.nodes(node).lxc(vmid).status.reboot.post()
+        
+        try:
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(_executor, _sync_reboot)
             return True
         except Exception as e:
             logger.error("[ProxmoxAdapter] Error rebooting %s/%s: %s", vmtype, vmid, e)
+            return False
             return False
 
 

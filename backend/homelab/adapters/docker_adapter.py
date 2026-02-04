@@ -1,13 +1,31 @@
 """Docker adapter for container management."""
 
+import asyncio
 import logging
-import docker
-from docker.errors import DockerException, NotFound
+import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from datetime import datetime, timedelta
 
+import docker
+from docker.errors import DockerException, NotFound
 
 logger = logging.getLogger(__name__)
+
+# Thread pool for running sync Docker client calls
+_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="docker")
+
+# Safety constants
+MAX_LOG_LINES = 1000
+MAX_LOG_BYTES = 1024 * 1024  # 1MB
+DEFAULT_TIMEOUT_SECONDS = 30
+MAX_TIMEOUT_SECONDS = 300
+
+# Input validation
+_CONTAINER_ID_PATTERN = re.compile(r'^[a-zA-Z0-9][a-zA-Z0-9_.-]*$')
+
+# Fields to strip from inspection (may contain secrets)
+_SENSITIVE_INSPECTION_FIELDS = {'Env', 'Config.Env'}
 
 
 class DockerAdapter:
@@ -133,6 +151,172 @@ class DockerAdapter:
         except Exception as e:
             logger.error("[DockerAdapter] Error stopping %s: %s", container_id, e)
             return False
+    
+    async def get_container_logs(
+        self,
+        container_id: str,
+        tail: int = 100,
+        since: str | None = None,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> str:
+        """
+        Get container logs as a string with safety bounds.
+        
+        Args:
+            container_id: Container ID or name
+            tail: Max lines to return (capped at MAX_LOG_LINES)
+            since: Optional timestamp to start from
+            timeout: Max time to wait (capped at MAX_TIMEOUT_SECONDS)
+        
+        Returns:
+            Log content as string, truncated if exceeds MAX_LOG_BYTES
+        """
+        if not self.client:
+            return ""
+        
+        # Validate container ID
+        if not container_id or not _CONTAINER_ID_PATTERN.match(container_id):
+            logger.warning("[DockerAdapter] Invalid container ID: %s", container_id)
+            return ""
+        
+        # Enforce bounds
+        tail = min(max(1, tail), MAX_LOG_LINES)
+        timeout = min(max(1, timeout), MAX_TIMEOUT_SECONDS)
+        
+        def _sync_get_logs():
+            container = self.client.containers.get(container_id)
+            logs = container.logs(tail=tail, timestamps=True)
+            return logs.decode("utf-8", errors="replace")
+        
+        try:
+            loop = asyncio.get_event_loop()
+            logs = await asyncio.wait_for(
+                loop.run_in_executor(_executor, _sync_get_logs),
+                timeout=timeout
+            )
+            
+            # Truncate if too large
+            if len(logs) > MAX_LOG_BYTES:
+                logs = logs[:MAX_LOG_BYTES] + "\n... [TRUNCATED - exceeded 1MB limit]"
+            
+            return logs
+        except asyncio.TimeoutError:
+            logger.warning("[DockerAdapter] Timeout getting logs for %s", container_id)
+            return "[ERROR: Timeout retrieving logs]"
+        except NotFound:
+            logger.warning("[DockerAdapter] Container not found: %s", container_id)
+            return ""
+        except Exception as e:
+            logger.error("[DockerAdapter] Error getting logs for %s: %s", container_id, e)
+            return ""
+    
+    async def inspect_container(
+        self,
+        container_id: str,
+        strip_secrets: bool = True,
+        timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    ) -> dict[str, Any] | None:
+        """
+        Get detailed container inspection data with safety bounds.
+        
+        Args:
+            container_id: Container ID or name
+            strip_secrets: Remove environment variables and other sensitive data
+            timeout: Max time to wait
+        
+        Returns:
+            Container attributes dict, or None if not found/error
+        """
+        if not self.client:
+            return None
+        
+        # Validate container ID
+        if not container_id or not _CONTAINER_ID_PATTERN.match(container_id):
+            logger.warning("[DockerAdapter] Invalid container ID: %s", container_id)
+            return None
+        
+        timeout = min(max(1, timeout), MAX_TIMEOUT_SECONDS)
+        
+        def _sync_inspect():
+            container = self.client.containers.get(container_id)
+            return container.attrs
+        
+        try:
+            loop = asyncio.get_event_loop()
+            attrs = await asyncio.wait_for(
+                loop.run_in_executor(_executor, _sync_inspect),
+                timeout=timeout
+            )
+            
+            if strip_secrets and attrs:
+                attrs = self._strip_sensitive_fields(attrs)
+            
+            return attrs
+        except asyncio.TimeoutError:
+            logger.warning("[DockerAdapter] Timeout inspecting %s", container_id)
+            return None
+        except NotFound:
+            return None
+        except Exception as e:
+            logger.error("[DockerAdapter] Error inspecting %s: %s", container_id, e)
+            return None
+    
+    def _strip_sensitive_fields(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        """Remove potentially sensitive fields from container attributes."""
+        import copy
+        safe_attrs = copy.deepcopy(attrs)
+        
+        # Strip environment variables (may contain secrets)
+        if "Config" in safe_attrs and "Env" in safe_attrs["Config"]:
+            safe_attrs["Config"]["Env"] = ["[REDACTED - use docker inspect directly for env vars]"]
+        
+        # Strip any NetworkSettings credentials
+        if "NetworkSettings" in safe_attrs:
+            ns = safe_attrs["NetworkSettings"]
+            if "Networks" in ns:
+                for network in ns["Networks"].values():
+                    if isinstance(network, dict):
+                        network.pop("NetworkID", None)
+                        network.pop("EndpointID", None)
+        
+        return safe_attrs
+    
+    async def prune_images(
+        self,
+        all: bool = False,
+        timeout: int = 60,
+    ) -> dict[str, Any]:
+        """
+        Prune unused Docker images with timeout protection.
+        
+        Args:
+            all: If True, remove all unused images (not just dangling)
+            timeout: Max time to wait for prune operation
+        """
+        if not self.client:
+            return {"error": "Docker client not connected"}
+        
+        timeout = min(max(1, timeout), MAX_TIMEOUT_SECONDS)
+        
+        def _sync_prune():
+            return self.client.images.prune(filters={"dangling": not all})
+        
+        try:
+            loop = asyncio.get_event_loop()
+            result = await asyncio.wait_for(
+                loop.run_in_executor(_executor, _sync_prune),
+                timeout=timeout
+            )
+            return {
+                "images_deleted": len(result.get("ImagesDeleted", []) or []),
+                "space_reclaimed": result.get("SpaceReclaimed", 0),
+            }
+        except asyncio.TimeoutError:
+            logger.warning("[DockerAdapter] Timeout during image prune")
+            return {"error": "Timeout during prune operation"}
+        except Exception as e:
+            logger.error("[DockerAdapter] Error pruning images: %s", e)
+            return {"error": str(e)}
     
     def _container_to_dict(self, container) -> dict[str, Any]:
         """Convert container object to dict."""
