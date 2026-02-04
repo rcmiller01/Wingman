@@ -11,6 +11,8 @@ interface DockerContainer {
     image: string;
     state: string;
     status: string;
+    created?: string;
+    restartCount?: number;
     stats?: {
         cpuPercent: number;
         memoryUsageMb: number;
@@ -121,11 +123,11 @@ export default function ContainerDetailPage() {
                         <dl className="space-y-2 text-xs">
                             <div>
                                 <dt className="text-slate-500">Created</dt>
-                                <dd className="text-slate-300">{new Date(container.created).toLocaleDateString()}</dd>
+                                <dd className="text-slate-300">{container.created ? new Date(container.created).toLocaleDateString() : '-'}</dd>
                             </div>
                             <div>
                                 <dt className="text-slate-500">Restart Count</dt>
-                                <dd className="text-slate-300">{container.restartCount || 0}</dd>
+                                <dd className="text-slate-300">{container.restartCount ?? 0}</dd>
                             </div>
                         </dl>
                     </div>

@@ -171,6 +171,9 @@ class ActionHistory(Base):
     previous entry, enabling tamper detection.
     
     Hash chain: entry_hash = SHA256(prev_hash + action_template + target + timestamp)
+    
+    Actor Attribution: Tracks who requested, approved, and executed each action
+    for complete audit trail accountability.
     """
     __tablename__ = "action_history"
     
@@ -189,6 +192,16 @@ class ActionHistory(Base):
     
     result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    
+    # Actor attribution for audit trail
+    requested_by_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    requested_by_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    requested_by_key_id: Mapped[str | None] = mapped_column(String(64), nullable=True)  # First 16 chars of key hash
+    approved_by_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    approved_by_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    approved_by_key_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    executed_by_user_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    executed_by_role: Mapped[str | None] = mapped_column(String(50), nullable=True)
     
     # Hash chain for tamper detection (append-only audit log)
     prev_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)  # SHA256 of previous entry

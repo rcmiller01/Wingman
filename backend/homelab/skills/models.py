@@ -38,7 +38,14 @@ class SkillExecutionStatus(str, Enum):
 
 @dataclass
 class SkillMeta:
-    """Metadata describing a skill."""
+    """Metadata describing a skill.
+    
+    Blast Radius Tagging:
+    - adapters: Which systems this skill touches (docker, proxmox, file)
+    - mutates_state: Whether this skill changes state (False = read-only)
+    - target_scope: What the skill affects ("single", "container", "host", "cluster")
+    - reversible: Whether the action can be undone
+    """
     id: str
     name: str
     description: str
@@ -50,6 +57,62 @@ class SkillMeta:
     estimated_duration_seconds: int = 30
     requires_confirmation: bool = False  # Extra confirmation for destructive ops
     tags: list[str] = field(default_factory=list)
+    
+    # Blast radius metadata
+    adapters: list[str] = field(default_factory=list)  # ["docker", "proxmox", "file", "network"]
+    mutates_state: bool = False  # True if skill changes state
+    target_scope: str = "single"  # "single", "container", "host", "cluster", "global"
+    reversible: bool = True  # Whether action can be undone
+    example_targets: list[str] = field(default_factory=list)  # Example target values
+    example_output: str | None = None  # Example successful output
+    
+    def get_risk_badge(self) -> str:
+        """Get a human-readable risk badge."""
+        badges = {
+            SkillRisk.low: "🟢 Low Risk (Auto-approve)",
+            SkillRisk.medium: "🟡 Medium Risk (Requires approval)",
+            SkillRisk.high: "🔴 High Risk (Requires approval + audit)",
+        }
+        return badges.get(self.risk, "⚪ Unknown")
+    
+    def get_blast_radius_summary(self) -> str:
+        """Get a summary of the blast radius."""
+        parts = []
+        
+        if self.mutates_state:
+            parts.append("⚡ Mutates state")
+        else:
+            parts.append("👁️ Read-only")
+        
+        scope_labels = {
+            "single": "Single target",
+            "container": "Container scope",
+            "host": "Host scope",
+            "cluster": "Cluster scope",
+            "global": "⚠️ Global scope",
+        }
+        parts.append(scope_labels.get(self.target_scope, self.target_scope))
+        
+        if not self.reversible:
+            parts.append("⛔ Irreversible")
+        
+        return " | ".join(parts)
+    
+    def to_safety_dict(self) -> dict:
+        """Get safety-relevant metadata for UI display."""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "risk": self.risk.value,
+            "risk_badge": self.get_risk_badge(),
+            "category": self.category.value,
+            "adapters": self.adapters or self.target_types,
+            "mutates_state": self.mutates_state,
+            "target_scope": self.target_scope,
+            "reversible": self.reversible,
+            "blast_radius": self.get_blast_radius_summary(),
+            "requires_confirmation": self.requires_confirmation,
+        }
 
 
 @dataclass

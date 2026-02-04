@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Server
     app_name: str = "Homelab Copilot"
     debug: bool = False
+    environment: str = "development"  # development, staging, production
+    
+    # Auth
+    auth_secret_key: str = "wingman-dev-secret-change-in-production"
+    auth_enabled: bool = False  # Set to True to require authentication
     
     # Database
     database_url: str = "postgresql+asyncpg://copilot:changeme@postgres:5432/homelab_copilot"

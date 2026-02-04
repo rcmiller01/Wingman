@@ -1,0 +1,119 @@
+# Wingman Test Stack
+# 
+# A collection of labeled test containers for integration testing.
+# These containers have the `wingman.test=true` label which allows
+# the integration safety policy to perform operations on them.
+#
+# ONE-COMMAND SETUP:
+#   ./scripts/test-stack.sh up       # Start test stack
+#   ./scripts/test-stack.sh down     # Stop test stack  
+#   ./scripts/test-stack.sh reset    # Reset (down -v, then up)
+#   ./scripts/test-stack.sh status   # Show container status
+#
+# MANUAL USAGE:
+#   docker compose -f docker-compose.test-stack.yml up -d
+#
+# Run integration tests:
+#   WINGMAN_EXECUTION_MODE=integration pytest tests/ -v -k "integration"
+#
+# Clean up:
+#   docker compose -f docker-compose.test-stack.yml down -v
+#
+# CONTAINER LABELS:
+#   wingman.test=true     - Marks container as safe for integration testing
+#   wingman.role=<role>   - Role of container (webserver, cache, database, worker)
+#   wingman.tier=<tier>   - Tier for policy (frontend, backend)
+
+name: wingman-test-stack
+
+networks:
+  wingman-test-net:
+    name: wingman-test-network
+    driver: bridge
+    labels:
+      wingman.test: "true"
+
+services:
+  # Simple nginx container for health check testing
+  test-nginx:
+    image: nginx:alpine
+    container_name: wingman-test-nginx
+    networks:
+      - wingman-test-net
+    labels:
+      wingman.test: "true"
+      wingman.role: "webserver"
+      wingman.tier: "frontend"
+    ports:
+      - "8081:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  # Redis container for cache/session testing
+  test-redis:
+    image: redis:7-alpine
+    container_name: wingman-test-redis
+    networks:
+      - wingman-test-net
+    labels:
+      wingman.test: "true"
+      wingman.role: "cache"
+      wingman.tier: "backend"
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    command: redis-server --maxmemory 64mb --maxmemory-policy allkeys-lru
+
+  # PostgreSQL container for database testing
+  test-postgres:
+    image: postgres:16-alpine
+    container_name: wingman-test-postgres
+    networks:
+      - wingman-test-net
+    labels:
+      wingman.test: "true"
+      wingman.role: "database"
+      wingman.tier: "backend"
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: testdb
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d testdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    volumes:
+      - test-postgres-data:/var/lib/postgresql/data
+
+  # Alpine container for exec/shell testing (long-running)
+  test-alpine:
+    image: alpine:latest
+    container_name: wingman-test-alpine
+    labels:
+      wingman.test: "true"
+      wingman.role: "utility"
+      wingman.tier: "backend"
+    # Keep container running for testing
+    command: tail -f /dev/null
+    restart: unless-stopped
+
+volumes:
+  test-postgres-data:
+    name: wingman-test-postgres-data
+
+networks:
+  default:
+    name: wingman-test-network

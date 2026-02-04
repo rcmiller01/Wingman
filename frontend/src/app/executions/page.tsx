@@ -2,6 +2,22 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { getApiUrl } from '@/lib/api-config';
+import { 
+    ExecutionTimeline, 
+    buildTimelineEvents, 
+    SafetyPolicyInfo,
+    FilterBar,
+    ActiveFilterPills,
+    defaultFilters,
+    PolicyDecisionBanner,
+    PolicyDecisionSummary,
+    PreviewModal,
+    SkillSelectionStep,
+    ParameterEntryStep,
+    Pagination,
+    type FilterState,
+    type PolicyDecision,
+} from '@/components/executions';
 
 interface Execution {
     id: string;
@@ -9,6 +25,7 @@ interface Execution {
     skill_name: string;
     status: string;
     risk_level: string;
+    execution_mode?: string;
     parameters: Record<string, unknown>;
     created_at: string;
     updated_at: string;
@@ -18,10 +35,14 @@ interface Execution {
     rejected_by?: string;
     rejection_reason?: string;
     executed_at?: string;
+    target_type?: string;
+    target_id?: string;
+    policy_decision?: PolicyDecision;
     result?: {
         success: boolean;
         output: unknown;
         duration_ms: number;
+        safety_warnings?: string[];
     };
     error_message?: string;
 }
@@ -48,6 +69,17 @@ interface Skill {
     requires_confirmation: boolean;
 }
 
+interface PreviewResponse {
+    skill_id: string;
+    skill_name: string;
+    parameters: Record<string, unknown>;
+    mode: string;
+    risk_level: string;
+    policy_decision: PolicyDecision;
+    targets_affected: string[];
+    estimated_duration_seconds: number;
+}
+
 const statusColors: Record<string, string> = {
     pending_approval: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
     approved: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
@@ -60,6 +92,12 @@ const riskColors: Record<string, string> = {
     low: 'bg-emerald-500/20 text-emerald-400',
     medium: 'bg-amber-500/20 text-amber-400',
     high: 'bg-red-500/20 text-red-400',
+};
+
+const modeColors: Record<string, { bg: string; text: string; dot: string }> = {
+    mock: { bg: 'bg-purple-500/20', text: 'text-purple-400', dot: 'bg-purple-400' },
+    integration: { bg: 'bg-blue-500/20', text: 'text-blue-400', dot: 'bg-blue-400' },
+    lab: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', dot: 'bg-emerald-400' },
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -105,22 +143,62 @@ function ModeBadge({ mode }: { mode: ExecutionMode }) {
     );
 }
 
+function ExecutionModeBadge({ executionMode }: { executionMode?: string }) {
+    if (!executionMode) return null;
+    const colors = modeColors[executionMode] || { bg: 'bg-slate-500/20', text: 'text-slate-400', dot: 'bg-slate-400' };
+    return (
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-xs font-medium ${colors.bg} ${colors.text}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+            {executionMode}
+        </span>
+    );
+}
+
+type WizardStep = 'closed' | 'select_skill' | 'enter_params' | 'preview';
+
 export default function ExecutionsPage() {
     const [executions, setExecutions] = useState<Execution[]>([]);
     const [skills, setSkills] = useState<Skill[]>([]);
     const [mode, setMode] = useState<ExecutionMode | null>(null);
     const [loading, setLoading] = useState(true);
-    const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [filters, setFilters] = useState<FilterState>(defaultFilters);
     const [selectedExecution, setSelectedExecution] = useState<Execution | null>(null);
-    const [showSkillModal, setShowSkillModal] = useState(false);
+    const [showPolicyInfo, setShowPolicyInfo] = useState(false);
+    
+    // Pagination state
+    const [page, setPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
+    const [total, setTotal] = useState(0);
+    
+    // Wizard state
+    const [wizardStep, setWizardStep] = useState<WizardStep>('closed');
     const [selectedSkill, setSelectedSkill] = useState<Skill | null>(null);
     const [skillParams, setSkillParams] = useState<Record<string, string>>({});
+    const [preview, setPreview] = useState<PreviewResponse | null>(null);
+    const [previewLoading, setPreviewLoading] = useState(false);
+
+    // Build query string from filters and pagination
+    const buildQueryString = useCallback(() => {
+        const params = new URLSearchParams();
+        if (filters.status !== 'all') params.set('status', filters.status);
+        if (filters.risk !== 'all') params.set('risk', filters.risk);
+        if (filters.mode !== 'all') params.set('mode', filters.mode);
+        if (filters.skill_id) params.set('skill_id', filters.skill_id);
+        if (filters.target) params.set('target', filters.target);
+        if (filters.search) params.set('search', filters.search);
+        if (filters.sort !== 'newest') params.set('sort', filters.sort);
+        if (filters.needs_attention) params.set('needs_attention', 'true');
+        // Pagination
+        params.set('page', page.toString());
+        params.set('page_size', pageSize.toString());
+        return params.toString();
+    }, [filters, page, pageSize]);
 
     const fetchData = useCallback(async () => {
         try {
-            const statusParam = statusFilter === 'all' ? '' : `?status=${statusFilter}`;
+            const queryString = buildQueryString();
             const [execRes, skillsRes, modeRes] = await Promise.all([
-                fetch(getApiUrl(`/api/executions${statusParam}`)),
+                fetch(getApiUrl(`/api/executions${queryString ? `?${queryString}` : ''}`)),
                 fetch(getApiUrl('/api/executions/skills')),
                 fetch(getApiUrl('/api/executions/mode')),
             ]);
@@ -130,6 +208,7 @@ export default function ExecutionsPage() {
             const modeData = await modeRes.json();
             
             setExecutions(execData.executions || []);
+            setTotal(execData.total || 0);
             setSkills(skillsData.skills || []);
             setMode(modeData);
         } catch (err) {
@@ -137,13 +216,29 @@ export default function ExecutionsPage() {
         } finally {
             setLoading(false);
         }
-    }, [statusFilter]);
+    }, [buildQueryString]);
 
     useEffect(() => {
         fetchData();
         const interval = setInterval(fetchData, 5000);
         return () => clearInterval(interval);
     }, [fetchData]);
+    
+    // Reset to page 1 when filters change
+    const handleFiltersChange = useCallback((newFilters: FilterState) => {
+        setFilters(newFilters);
+        setPage(1); // Go back to first page on filter change
+    }, []);
+    
+    // Pagination handlers
+    const handlePageChange = useCallback((newPage: number) => {
+        setPage(newPage);
+    }, []);
+    
+    const handlePageSizeChange = useCallback((newSize: number) => {
+        setPageSize(newSize);
+        setPage(1); // Reset to first page when changing page size
+    }, []);
 
     const handleApprove = async (executionId: string) => {
         try {
@@ -182,7 +277,53 @@ export default function ExecutionsPage() {
         }
     };
 
-    const handleCreateExecution = async () => {
+    // Wizard handlers
+    const openWizard = () => {
+        setWizardStep('select_skill');
+        setSelectedSkill(null);
+        setSkillParams({});
+        setPreview(null);
+    };
+
+    const closeWizard = () => {
+        setWizardStep('closed');
+        setSelectedSkill(null);
+        setSkillParams({});
+        setPreview(null);
+    };
+
+    const handleSelectSkill = (skill: Skill) => {
+        setSelectedSkill(skill);
+        setSkillParams({});
+        setWizardStep('enter_params');
+    };
+
+    const handleRequestPreview = async () => {
+        if (!selectedSkill) return;
+        
+        setWizardStep('preview');
+        setPreviewLoading(true);
+        
+        try {
+            const res = await fetch(getApiUrl('/api/executions/preview'), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    skill_id: selectedSkill.id,
+                    parameters: skillParams,
+                }),
+            });
+            const data = await res.json();
+            setPreview(data);
+        } catch (err) {
+            console.error('Failed to get preview:', err);
+            setPreview(null);
+        } finally {
+            setPreviewLoading(false);
+        }
+    };
+
+    const handleConfirmExecution = async () => {
         if (!selectedSkill) return;
         
         try {
@@ -194,14 +335,15 @@ export default function ExecutionsPage() {
                     parameters: skillParams,
                 }),
             });
-            setShowSkillModal(false);
-            setSelectedSkill(null);
-            setSkillParams({});
+            closeWizard();
             fetchData();
         } catch (err) {
             console.error('Failed to create execution:', err);
         }
     };
+
+    // Count stats
+    const pendingCount = executions.filter(e => e.status === 'pending_approval').length;
 
     return (
         <div className="space-y-6 max-w-6xl mx-auto">
@@ -209,12 +351,23 @@ export default function ExecutionsPage() {
             <header className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white mb-2">Skill Executions</h1>
-                    <p className="text-slate-400">Manage and monitor skill execution lifecycle</p>
+                    <p className="text-slate-400">
+                        Manage and monitor skill execution lifecycle
+                        {pendingCount > 0 && (
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs">
+                                {pendingCount} pending
+                            </span>
+                        )}
+                    </p>
                 </div>
                 <div className="flex items-center gap-4">
-                    {mode && <ModeBadge mode={mode} />}
+                    {mode && (
+                        <button onClick={() => setShowPolicyInfo(!showPolicyInfo)}>
+                            <ModeBadge mode={mode} />
+                        </button>
+                    )}
                     <button
-                        onClick={() => setShowSkillModal(true)}
+                        onClick={openWizard}
                         className="px-4 py-2 bg-copilot-500 hover:bg-copilot-600 text-white rounded-lg font-medium transition-colors"
                     >
                         + New Execution
@@ -222,22 +375,20 @@ export default function ExecutionsPage() {
                 </div>
             </header>
 
-            {/* Filters */}
-            <div className="flex gap-2">
-                {['all', 'pending_approval', 'approved', 'completed', 'rejected', 'failed'].map((status) => (
-                    <button
-                        key={status}
-                        onClick={() => setStatusFilter(status)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                            statusFilter === status
-                                ? 'bg-copilot-500/20 text-copilot-400 border border-copilot-500/30'
-                                : 'bg-slate-800/50 text-slate-400 border border-slate-700/50 hover:border-slate-600'
-                        }`}
-                    >
-                        {status === 'all' ? 'All' : status.replace('_', ' ')}
-                    </button>
-                ))}
-            </div>
+            {/* Safety Policy Info Panel */}
+            {showPolicyInfo && mode && (
+                <SafetyPolicyInfo mode={mode.mode as 'mock' | 'integration' | 'lab'} />
+            )}
+
+            {/* Filter Bar */}
+            <FilterBar 
+                filters={filters} 
+                onChange={handleFiltersChange}
+                skills={skills.map(s => ({ id: s.id, name: s.name }))}
+            />
+
+            {/* Active filter pills */}
+            <ActiveFilterPills filters={filters} onChange={handleFiltersChange} />
 
             {/* Execution List */}
             {loading ? (
@@ -246,9 +397,13 @@ export default function ExecutionsPage() {
                 <div className="bg-slate-800/50 rounded-xl p-12 text-center border border-slate-700/50 backdrop-blur-sm">
                     <div className="text-5xl mb-6 opacity-80">📋</div>
                     <h3 className="text-xl font-medium text-white mb-2">No Executions</h3>
-                    <p className="text-slate-400 mb-4">Create a new skill execution to get started.</p>
+                    <p className="text-slate-400 mb-4">
+                        {filters.status !== 'all' || filters.search 
+                            ? 'No executions match your filters.' 
+                            : 'Create a new skill execution to get started.'}
+                    </p>
                     <button
-                        onClick={() => setShowSkillModal(true)}
+                        onClick={openWizard}
                         className="px-4 py-2 bg-copilot-500 hover:bg-copilot-600 text-white rounded-lg font-medium transition-colors"
                     >
                         + New Execution
@@ -263,18 +418,31 @@ export default function ExecutionsPage() {
                         >
                             <div className="flex items-start justify-between mb-4">
                                 <div className="space-y-2">
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-wrap">
                                         <h3 className="text-lg font-bold text-white">
                                             {execution.skill_name}
                                         </h3>
                                         <StatusBadge status={execution.status} />
                                         <RiskBadge risk={execution.risk_level} />
+                                        <ExecutionModeBadge executionMode={execution.execution_mode} />
                                     </div>
-                                    <div className="text-sm text-slate-400">
+                                    <div className="flex items-center gap-3 text-sm text-slate-400">
                                         <span className="font-mono text-slate-500">{execution.id.slice(0, 8)}</span>
-                                        <span className="mx-2">•</span>
+                                        <span>•</span>
                                         <span>{new Date(execution.created_at).toLocaleString()}</span>
+                                        {execution.target_id && (
+                                            <>
+                                                <span>•</span>
+                                                <span className="font-mono text-slate-500">
+                                                    {execution.target_type}: {execution.target_id}
+                                                </span>
+                                            </>
+                                        )}
                                     </div>
+                                    {/* Policy decision summary */}
+                                    {execution.policy_decision && (
+                                        <PolicyDecisionSummary decision={execution.policy_decision} />
+                                    )}
                                 </div>
                                 
                                 {/* Action Buttons */}
@@ -360,121 +528,62 @@ export default function ExecutionsPage() {
                     ))}
                 </div>
             )}
+            
+            {/* Pagination */}
+            {!loading && total > 0 && (
+                <Pagination
+                    page={page}
+                    pageSize={pageSize}
+                    total={total}
+                    onPageChange={handlePageChange}
+                    onPageSizeChange={handlePageSizeChange}
+                />
+            )}
 
-            {/* Skill Selection Modal */}
-            {showSkillModal && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-white">Select Skill to Execute</h2>
-                            <button
-                                onClick={() => {
-                                    setShowSkillModal(false);
-                                    setSelectedSkill(null);
-                                    setSkillParams({});
-                                }}
-                                className="text-slate-400 hover:text-white"
-                            >
-                                ✕
-                            </button>
-                        </div>
+            {/* Creation Wizard - Step 1: Select Skill */}
+            {wizardStep === 'select_skill' && (
+                <SkillSelectionStep
+                    skills={skills}
+                    selectedSkill={selectedSkill}
+                    onSelectSkill={handleSelectSkill}
+                    onClose={closeWizard}
+                />
+            )}
 
-                        {!selectedSkill ? (
-                            <div className="space-y-3">
-                                {skills.map((skill) => (
-                                    <button
-                                        key={skill.id}
-                                        onClick={() => setSelectedSkill(skill)}
-                                        className="w-full text-left bg-slate-700/50 hover:bg-slate-700 rounded-xl p-4 transition-colors"
-                                    >
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-semibold text-white">{skill.name}</span>
-                                            <div className="flex gap-2">
-                                                <span className="px-2 py-0.5 rounded text-xs bg-slate-600 text-slate-300">
-                                                    {skill.category}
-                                                </span>
-                                                <RiskBadge risk={skill.risk} />
-                                            </div>
-                                        </div>
-                                        <p className="text-sm text-slate-400">{skill.description}</p>
-                                    </button>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                <div className="bg-slate-700/50 rounded-xl p-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className="font-semibold text-white">{selectedSkill.name}</span>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedSkill(null);
-                                                setSkillParams({});
-                                            }}
-                                            className="text-sm text-copilot-400 hover:text-copilot-300"
-                                        >
-                                            Change
-                                        </button>
-                                    </div>
-                                    <p className="text-sm text-slate-400">{selectedSkill.description}</p>
-                                </div>
+            {/* Creation Wizard - Step 2: Enter Parameters */}
+            {wizardStep === 'enter_params' && selectedSkill && (
+                <ParameterEntryStep
+                    skill={selectedSkill}
+                    parameters={skillParams}
+                    onChange={setSkillParams}
+                    onBack={() => setWizardStep('select_skill')}
+                    onPreview={handleRequestPreview}
+                    onClose={closeWizard}
+                />
+            )}
 
-                                {/* Required Parameters */}
-                                {selectedSkill.required_params.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-sm font-medium text-slate-400">Required Parameters</h3>
-                                        {selectedSkill.required_params.map((param) => (
-                                            <div key={param}>
-                                                <label className="block text-sm text-slate-300 mb-1">{param}</label>
-                                                <input
-                                                    type="text"
-                                                    value={skillParams[param] || ''}
-                                                    onChange={(e) => setSkillParams({ ...skillParams, [param]: e.target.value })}
-                                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-copilot-500 focus:outline-none"
-                                                    placeholder={`Enter ${param}`}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* Optional Parameters */}
-                                {selectedSkill.optional_params.length > 0 && (
-                                    <div className="space-y-3">
-                                        <h3 className="text-sm font-medium text-slate-400">Optional Parameters</h3>
-                                        {selectedSkill.optional_params.map((param) => (
-                                            <div key={param}>
-                                                <label className="block text-sm text-slate-300 mb-1">{param}</label>
-                                                <input
-                                                    type="text"
-                                                    value={skillParams[param] || ''}
-                                                    onChange={(e) => setSkillParams({ ...skillParams, [param]: e.target.value })}
-                                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-white focus:border-copilot-500 focus:outline-none"
-                                                    placeholder={`Enter ${param} (optional)`}
-                                                />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-
-                                <button
-                                    onClick={handleCreateExecution}
-                                    disabled={selectedSkill.required_params.some((p) => !skillParams[p])}
-                                    className="w-full mt-4 px-4 py-3 bg-copilot-500 hover:bg-copilot-600 disabled:bg-slate-700 disabled:text-slate-500 text-white rounded-lg font-medium transition-colors"
-                                >
-                                    Create Execution Request
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
+            {/* Creation Wizard - Step 3: Preview */}
+            {wizardStep === 'preview' && selectedSkill && (
+                <PreviewModal
+                    skill={selectedSkill}
+                    parameters={skillParams}
+                    preview={preview}
+                    loading={previewLoading}
+                    onClose={closeWizard}
+                    onConfirm={handleConfirmExecution}
+                    onBack={() => setWizardStep('enter_params')}
+                />
             )}
 
             {/* Execution Details Modal */}
             {selectedExecution && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
+                    <div className="bg-slate-800 rounded-2xl border border-slate-700 p-6 w-full max-w-3xl max-h-[85vh] overflow-auto">
                         <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-xl font-bold text-white">Execution Details</h2>
+                            <div>
+                                <h2 className="text-xl font-bold text-white">Execution Details</h2>
+                                <p className="text-sm text-slate-400 font-mono">{selectedExecution.id}</p>
+                            </div>
                             <button
                                 onClick={() => setSelectedExecution(null)}
                                 className="text-slate-400 hover:text-white"
@@ -483,91 +592,150 @@ export default function ExecutionsPage() {
                             </button>
                         </div>
 
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <span className="text-sm text-slate-400">ID</span>
-                                    <p className="text-white font-mono text-sm">{selectedExecution.id}</p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-slate-400">Skill</span>
-                                    <p className="text-white">{selectedExecution.skill_name}</p>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-slate-400">Status</span>
-                                    <div className="mt-1">
+                        {/* Mini-PR style layout */}
+                        <div className="space-y-6">
+                            {/* Summary header */}
+                            <div className="flex items-center gap-4 p-4 bg-slate-700/30 rounded-xl">
+                                <div className="flex-1">
+                                    <h3 className="text-lg font-semibold text-white">{selectedExecution.skill_name}</h3>
+                                    <div className="flex items-center gap-2 mt-1">
                                         <StatusBadge status={selectedExecution.status} />
-                                    </div>
-                                </div>
-                                <div>
-                                    <span className="text-sm text-slate-400">Risk Level</span>
-                                    <div className="mt-1">
                                         <RiskBadge risk={selectedExecution.risk_level} />
+                                        <ExecutionModeBadge executionMode={selectedExecution.execution_mode} />
                                     </div>
                                 </div>
+                                {selectedExecution.target_id && (
+                                    <div className="text-right">
+                                        <p className="text-xs text-slate-500">Target</p>
+                                        <p className="font-mono text-sm text-slate-300">
+                                            {selectedExecution.target_type}: {selectedExecution.target_id}
+                                        </p>
+                                    </div>
+                                )}
                             </div>
 
+                            {/* Timeline section */}
                             <div>
-                                <span className="text-sm text-slate-400">Timeline</span>
-                                <div className="mt-2 space-y-2 text-sm">
-                                    <div className="flex items-center gap-2">
-                                        <span className="w-24 text-slate-500">Created:</span>
-                                        <span className="text-white">{new Date(selectedExecution.created_at).toLocaleString()}</span>
-                                    </div>
-                                    {selectedExecution.approved_at && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-24 text-slate-500">Approved:</span>
-                                            <span className="text-emerald-400">{new Date(selectedExecution.approved_at).toLocaleString()}</span>
-                                            <span className="text-slate-500">by {selectedExecution.approved_by}</span>
-                                        </div>
-                                    )}
-                                    {selectedExecution.rejected_at && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-24 text-slate-500">Rejected:</span>
-                                            <span className="text-red-400">{new Date(selectedExecution.rejected_at).toLocaleString()}</span>
-                                            <span className="text-slate-500">by {selectedExecution.rejected_by}</span>
-                                        </div>
-                                    )}
-                                    {selectedExecution.executed_at && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="w-24 text-slate-500">Executed:</span>
-                                            <span className="text-blue-400">{new Date(selectedExecution.executed_at).toLocaleString()}</span>
-                                        </div>
-                                    )}
-                                </div>
+                                <h4 className="text-sm font-medium text-slate-400 mb-3">Timeline</h4>
+                                <ExecutionTimeline events={buildTimelineEvents(selectedExecution)} />
                             </div>
 
+                            {/* Policy Decision section */}
+                            {selectedExecution.policy_decision && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Policy Decision</h4>
+                                    <PolicyDecisionBanner decision={selectedExecution.policy_decision} />
+                                </div>
+                            )}
+
+                            {/* Parameters section */}
                             {Object.keys(selectedExecution.parameters).length > 0 && (
                                 <div>
-                                    <span className="text-sm text-slate-400">Parameters</span>
-                                    <pre className="mt-2 bg-slate-900/50 rounded-lg p-3 text-sm text-slate-300 overflow-auto">
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Parameters</h4>
+                                    <pre className="bg-slate-900/50 rounded-lg p-4 text-sm text-slate-300 overflow-auto font-mono">
                                         {JSON.stringify(selectedExecution.parameters, null, 2)}
                                     </pre>
                                 </div>
                             )}
 
+                            {/* Result section */}
                             {selectedExecution.result && (
                                 <div>
-                                    <span className="text-sm text-slate-400">Result</span>
-                                    <pre className="mt-2 bg-slate-900/50 rounded-lg p-3 text-sm text-slate-300 overflow-auto">
-                                        {JSON.stringify(selectedExecution.result, null, 2)}
-                                    </pre>
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Result</h4>
+                                    <div className={`p-4 rounded-xl border ${
+                                        selectedExecution.result.success 
+                                            ? 'bg-emerald-500/5 border-emerald-500/20' 
+                                            : 'bg-red-500/5 border-red-500/20'
+                                    }`}>
+                                        <div className="flex items-center gap-3 mb-3">
+                                            <span className={`text-lg ${selectedExecution.result.success ? 'text-emerald-400' : 'text-red-400'}`}>
+                                                {selectedExecution.result.success ? '✓' : '✗'}
+                                            </span>
+                                            <span className={selectedExecution.result.success ? 'text-emerald-400' : 'text-red-400'}>
+                                                {selectedExecution.result.success ? 'Success' : 'Failed'}
+                                            </span>
+                                            <span className="text-slate-500 text-sm">
+                                                {selectedExecution.result.duration_ms}ms
+                                            </span>
+                                        </div>
+                                        <pre className="bg-slate-900/50 rounded-lg p-3 text-sm text-slate-300 overflow-auto">
+                                            {JSON.stringify(selectedExecution.result.output, null, 2)}
+                                        </pre>
+                                    </div>
                                 </div>
                             )}
 
+                            {/* Safety Warnings */}
+                            {selectedExecution.result?.safety_warnings && selectedExecution.result.safety_warnings.length > 0 && (
+                                <div>
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Safety Warnings</h4>
+                                    <div className="space-y-2">
+                                        {selectedExecution.result.safety_warnings.map((warning: string, index: number) => (
+                                            <div key={index} className="flex items-start gap-2 text-sm bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                                                <span className="text-amber-400">⚠</span>
+                                                <span className="text-amber-200">{warning}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Rejection reason */}
                             {selectedExecution.rejection_reason && (
                                 <div>
-                                    <span className="text-sm text-slate-400">Rejection Reason</span>
-                                    <p className="mt-1 text-red-400">{selectedExecution.rejection_reason}</p>
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Rejection</h4>
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                                        <p className="text-red-400">{selectedExecution.rejection_reason}</p>
+                                        {selectedExecution.rejected_by && (
+                                            <p className="text-xs text-slate-500 mt-2">
+                                                by {selectedExecution.rejected_by} at {new Date(selectedExecution.rejected_at!).toLocaleString()}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
+                            {/* Error message */}
                             {selectedExecution.error_message && (
                                 <div>
-                                    <span className="text-sm text-slate-400">Error Message</span>
-                                    <p className="mt-1 text-red-400">{selectedExecution.error_message}</p>
+                                    <h4 className="text-sm font-medium text-slate-400 mb-3">Error</h4>
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4">
+                                        <pre className="text-red-400 text-sm whitespace-pre-wrap font-mono">
+                                            {selectedExecution.error_message}
+                                        </pre>
+                                    </div>
                                 </div>
                             )}
+
+                            {/* Audit info */}
+                            <div>
+                                <h4 className="text-sm font-medium text-slate-400 mb-3">Audit</h4>
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span className="text-slate-500">Created:</span>
+                                        <span className="text-slate-300 ml-2">{new Date(selectedExecution.created_at).toLocaleString()}</span>
+                                    </div>
+                                    <div>
+                                        <span className="text-slate-500">Updated:</span>
+                                        <span className="text-slate-300 ml-2">{new Date(selectedExecution.updated_at).toLocaleString()}</span>
+                                    </div>
+                                    {selectedExecution.approved_at && (
+                                        <div>
+                                            <span className="text-slate-500">Approved:</span>
+                                            <span className="text-slate-300 ml-2">
+                                                {new Date(selectedExecution.approved_at).toLocaleString()}
+                                                {selectedExecution.approved_by && ` by ${selectedExecution.approved_by}`}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {selectedExecution.executed_at && (
+                                        <div>
+                                            <span className="text-slate-500">Executed:</span>
+                                            <span className="text-slate-300 ml-2">{new Date(selectedExecution.executed_at).toLocaleString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

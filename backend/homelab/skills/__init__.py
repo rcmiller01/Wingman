@@ -33,6 +33,9 @@ from .execution_modes import (
     async_execution_mode_context,
 )
 
+# Auto-register Day 1 skills
+from . import day1_skills  # noqa: F401
+
 __all__ = [
     "SkillRegistry",
     "skill_registry",

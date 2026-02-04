@@ -318,6 +318,98 @@ class DockerAdapter:
             logger.error("[DockerAdapter] Error pruning images: %s", e)
             return {"error": str(e)}
     
+    async def inspect_container(self, container_id: str) -> dict[str, Any]:
+        """Get detailed container information (full inspection)."""
+        if not self.client:
+            return {}
+        
+        try:
+            container = self.client.containers.get(container_id)
+            attrs = container.attrs.copy()
+            
+            # Strip sensitive fields
+            if "Config" in attrs and "Env" in attrs["Config"]:
+                attrs["Config"]["Env"] = "[REDACTED]"
+            
+            return attrs
+        except NotFound:
+            return {}
+        except Exception as e:
+            logger.error("[DockerAdapter] Error inspecting %s: %s", container_id, e)
+            return {}
+    
+    async def get_container_stats(self, container_id: str) -> dict[str, Any]:
+        """Get container resource stats (single snapshot, not stream)."""
+        if not self.client:
+            return {}
+        
+        def _sync_stats():
+            container = self.client.containers.get(container_id)
+            return container.stats(stream=False)
+        
+        try:
+            loop = asyncio.get_event_loop()
+            stats = await asyncio.wait_for(
+                loop.run_in_executor(_executor, _sync_stats),
+                timeout=DEFAULT_TIMEOUT_SECONDS
+            )
+            
+            # Calculate CPU percentage
+            cpu_delta = stats["cpu_stats"]["cpu_usage"]["total_usage"] - \
+                        stats["precpu_stats"]["cpu_usage"]["total_usage"]
+            system_delta = stats["cpu_stats"]["system_cpu_usage"] - \
+                           stats["precpu_stats"]["system_cpu_usage"]
+            cpu_percent = (cpu_delta / system_delta) * 100 if system_delta > 0 else 0
+            
+            # Memory stats
+            mem_usage = stats["memory_stats"].get("usage", 0)
+            mem_limit = stats["memory_stats"].get("limit", 1)
+            mem_percent = (mem_usage / mem_limit) * 100 if mem_limit > 0 else 0
+            
+            return {
+                "name": container_id,
+                "cpu_percent": f"{cpu_percent:.2f}%",
+                "mem_usage": f"{mem_usage / (1024*1024):.1f}MiB / {mem_limit / (1024*1024):.1f}MiB",
+                "mem_percent": f"{mem_percent:.1f}%",
+                "net_io": stats.get("networks", {}),
+                "block_io": stats.get("blkio_stats", {}),
+                "pids": stats.get("pids_stats", {}).get("current", 0),
+            }
+        except NotFound:
+            return {}
+        except Exception as e:
+            logger.error("[DockerAdapter] Error getting stats for %s: %s", container_id, e)
+            return {}
+    
+    async def execute_command(self, container_id: str, command: list[str]) -> dict[str, Any]:
+        """Execute a command in a container."""
+        if not self.client:
+            return {"exit_code": -1, "output": "Docker client not connected"}
+        
+        def _sync_exec():
+            container = self.client.containers.get(container_id)
+            result = container.exec_run(command, demux=True)
+            stdout = result.output[0].decode("utf-8", errors="replace") if result.output[0] else ""
+            stderr = result.output[1].decode("utf-8", errors="replace") if result.output[1] else ""
+            return {
+                "exit_code": result.exit_code,
+                "stdout": stdout,
+                "stderr": stderr,
+                "output": stdout + stderr,
+            }
+        
+        try:
+            loop = asyncio.get_event_loop()
+            return await asyncio.wait_for(
+                loop.run_in_executor(_executor, _sync_exec),
+                timeout=DEFAULT_TIMEOUT_SECONDS
+            )
+        except NotFound:
+            return {"exit_code": -1, "output": f"Container not found: {container_id}"}
+        except Exception as e:
+            logger.error("[DockerAdapter] Error executing command in %s: %s", container_id, e)
+            return {"exit_code": -1, "output": str(e)}
+    
     def _container_to_dict(self, container) -> dict[str, Any]:
         """Convert container object to dict."""
         attrs = container.attrs
