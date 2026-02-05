@@ -22,6 +22,7 @@ This backlog turns the v2 Phase 1 anchor into an execution-ordered set of ticket
 - ✅ `PH1-EXEC-002` completed: base package added at `backend/homelab/execution_plugins/` with tests in `backend/tests/execution_plugins/test_registry.py`.
 - ✅ `PH1-EXEC-003` completed: Docker plugin added with validation + adapter failure coverage in `backend/tests/execution_plugins/test_docker_plugin.py`.
 - ✅ `PH1-EXEC-004` completed: Script plugin added with timeout/blocklist guardrails and tests in `backend/tests/execution_plugins/test_script_plugin.py`.
+- ✅ `PH1-EXEC-005` completed: `PlanExecutor` now routes Docker lifecycle actions through plugin registry with Proxmox legacy fallback and coverage in `backend/tests/test_plan_executor_plugins.py`.
 
 ---
 
