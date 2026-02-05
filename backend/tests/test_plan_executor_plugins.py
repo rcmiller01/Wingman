@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-
 import importlib
 
 pe_module = importlib.import_module("homelab.control_plane.plan_executor")
@@ -83,3 +82,38 @@ def test_execute_resource_action_proxmox_restart_legacy(monkeypatch):
     assert success is True
     assert error is None
     assert "Reboot sent" in result["message"]
+
+
+def test_enqueue_worker_execution(monkeypatch):
+    executor = PlanExecutor()
+
+    class FakeSettings:
+        worker_default_id = "worker-local-1"
+        worker_site_name = "default"
+
+    async def fake_enqueue(_db, **kwargs):
+        class T:
+            id = "task-1"
+
+        assert kwargs["task_type"] == "execute_action"
+        return T()
+
+    class FakeAction:
+        id = "action-1"
+        action_template = ActionTemplate.restart_resource
+        target_resource = "docker://nginx"
+        parameters = {"params": {"timeout": 20}, "todo_id": "todo-1"}
+        status = None
+        executed_at = None
+        result = None
+
+    class FakeDb:
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr(pe_module, "get_settings", lambda: FakeSettings())
+    monkeypatch.setattr(pe_module, "enqueue_worker_task", fake_enqueue)
+
+    queued = asyncio.run(executor._enqueue_worker_execution(FakeDb(), FakeAction()))
+
+    assert queued is True

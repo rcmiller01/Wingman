@@ -6,9 +6,11 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from homelab.config import get_settings
 from homelab.storage.models import ActionHistory, ActionTemplate, ActionStatus
 from homelab.adapters.proxmox_adapter import proxmox_adapter
 from homelab.execution_plugins import PluginAction, execution_registry
+from homelab.workers.service import enqueue_worker_task
 
 
 class PlanExecutor:
@@ -22,6 +24,11 @@ class PlanExecutor:
         if not action or action.status != ActionStatus.approved:
             print(f"[PlanExecutor] Cannot execute {action_id}: invalid status {action.status}")
             return False
+
+        settings = get_settings()
+        if settings.worker_delegation_enabled and action.target_resource.startswith("docker://"):
+            queued = await self._enqueue_worker_execution(db, action)
+            return queued
 
         print(f"[PlanExecutor] Executing {action.action_template} on {action.target_resource}")
 
@@ -47,6 +54,41 @@ class PlanExecutor:
         await db.commit()
 
         return success
+
+    async def _enqueue_worker_execution(self, db: AsyncSession, action: ActionHistory) -> bool:
+        action_map = {
+            ActionTemplate.restart_resource: "restart",
+            ActionTemplate.start_resource: "start",
+            ActionTemplate.stop_resource: "stop",
+        }
+        plugin_action_name = action_map.get(action.action_template)
+        if plugin_action_name is None:
+            return False
+
+        settings = get_settings()
+        action.status = ActionStatus.executing
+        action.executed_at = datetime.utcnow()
+
+        payload = {
+            "plugin_id": "docker",
+            "action": plugin_action_name,
+            "target": action.target_resource,
+            "params": (action.parameters or {}).get("params", {}),
+            "action_id": action.id,
+            "todo_id": (action.parameters or {}).get("todo_id"),
+        }
+
+        task = await enqueue_worker_task(
+            db,
+            task_type="execute_action",
+            worker_id=settings.worker_default_id,
+            idempotency_key=f"{action.id}:1",
+            payload=payload,
+            site_name=settings.worker_site_name,
+        )
+        action.result = {"queued_task_id": task.id, "delegated": True}
+        await db.commit()
+        return True
 
     async def _dispatch_action(self, action: ActionHistory) -> tuple[bool, dict | None, str | None]:
         if action.action_template not in {

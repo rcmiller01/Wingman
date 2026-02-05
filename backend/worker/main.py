@@ -5,9 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import signal
+from pathlib import Path
+from datetime import datetime, timezone
+
+import httpx
 
 from worker.client import WorkerControlPlaneClient
 from worker.config import WorkerSettings, get_worker_settings
+from worker.offline import OfflineBuffer, OfflineBufferConfig
 from worker.runner import TaskRunner
 
 
@@ -27,6 +32,13 @@ class WorkerService:
         self.runner = TaskRunner()
         self._shutdown_event = asyncio.Event()
         self._last_heartbeat: float = 0.0
+        self.offline_buffer = OfflineBuffer(
+            OfflineBufferConfig(
+                directory=Path(settings.offline_dir),
+                max_files=settings.offline_max_files,
+                max_age_seconds=settings.offline_max_age_seconds,
+            )
+        )
 
     def request_shutdown(self) -> None:
         """Trigger graceful shutdown."""
@@ -44,13 +56,15 @@ class WorkerService:
             },
         )
 
-        await self.client.register()
+        await self.client.register(capabilities=self._capabilities())
 
         loop = asyncio.get_running_loop()
         while not self._shutdown_event.is_set():
+            await self._replay_offline_buffer()
+
             now = loop.time()
             if now - self._last_heartbeat >= self.settings.heartbeat_interval_seconds:
-                await self.client.send_heartbeat()
+                await self.client.send_heartbeat(capabilities=self._capabilities())
                 self._last_heartbeat = now
 
             task = await self.client.claim_task()
@@ -59,13 +73,46 @@ class WorkerService:
                     payload_type, payload = await self.runner.run(task)
                 except Exception as exc:  # noqa: BLE001
                     payload_type = "execution_result"
-                    payload = {"success": False, "error": str(exc)}
-                await self.client.submit_result(task=task, payload_type=payload_type, payload=payload)
+                    payload = {"success": False, "error": str(exc), "error_code": "EXECUTION_ERROR"}
+
+                envelope = {
+                    "worker_id": self.settings.worker_id,
+                    "site_name": self.settings.site,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "payload_type": payload_type,
+                    "task_id": task.task_id,
+                    "idempotency_key": task.idempotency_key,
+                    "payload": payload,
+                }
+                await self._submit_or_buffer(envelope)
                 continue
 
             await asyncio.sleep(self.settings.poll_interval_seconds)
 
         logger.info("worker_stopping", extra={"worker_id": self.settings.worker_id})
+
+    def _capabilities(self) -> dict:
+        return {"tasks": ["collect_facts", "execute_script", "execute_action"], "offline_backlog_size": self.offline_buffer.backlog_size()}
+
+    async def _submit_or_buffer(self, envelope: dict) -> None:
+        try:
+            await self.client.submit_envelope(envelope)
+        except (httpx.HTTPError, OSError):
+            self.offline_buffer.write(envelope)
+
+    async def _replay_offline_buffer(self) -> None:
+        pending = self.offline_buffer.list_pending()
+        if not pending:
+            return
+
+        for path in pending[: self.settings.offline_replay_batch_size]:
+            envelope = self.offline_buffer.load(path)
+            try:
+                await self.client.submit_envelope(envelope)
+                self.offline_buffer.ack_delete(path)
+            except (httpx.HTTPError, OSError):
+                break
+            await asyncio.sleep(self.settings.offline_replay_interval_seconds)
 
 
 async def run_worker(settings: WorkerSettings | None = None) -> None:

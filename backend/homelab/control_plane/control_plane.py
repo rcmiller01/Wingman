@@ -195,6 +195,7 @@ class ControlPlane:
                                 "params": plan.parameters,
                                 "plan_id": plan.plan_id,
                                 "description": plan.description,
+                                "todo_id": plan.id,
                             },
                             status=ActionStatus.approved,
                             approved_at=plan.approved_at or datetime.utcnow(),

@@ -17,20 +17,20 @@ class WorkerControlPlaneClient:
         self.worker_id = worker_id
         self.site = site
 
-    async def register(self) -> dict:
+    async def register(self, capabilities: dict | None = None) -> dict:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/workers/register",
-                json={"worker_id": self.worker_id, "site_name": self.site, "capabilities": {}},
+                json={"worker_id": self.worker_id, "site_name": self.site, "capabilities": capabilities or {}},
             )
             response.raise_for_status()
             return response.json()
 
-    async def send_heartbeat(self) -> dict:
+    async def send_heartbeat(self, capabilities: dict | None = None) -> dict:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/workers/heartbeat",
-                json={"worker_id": self.worker_id, "site_name": self.site, "capabilities": {}},
+                json={"worker_id": self.worker_id, "site_name": self.site, "capabilities": capabilities or {}},
             )
             response.raise_for_status()
             return response.json()
@@ -58,10 +58,13 @@ class WorkerControlPlaneClient:
             idempotency_key=task.idempotency_key,
             payload=payload,
         )
+        return await self.submit_envelope(envelope.model_dump(mode="json"))
+
+    async def submit_envelope(self, envelope: dict) -> dict:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 f"{self.base_url}/api/workers/results",
-                json=envelope.model_dump(mode="json"),
+                json=envelope,
             )
             response.raise_for_status()
             return response.json()

@@ -9,6 +9,9 @@ from sqlalchemy import select, text, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from homelab.storage.models import (
+    ActionHistory,
+    ActionStatus,
+    TodoStep,
     WorkerNode,
     WorkerResult,
     WorkerStatus,
@@ -117,11 +120,30 @@ async def submit_worker_result(db: AsyncSession, result: WorkerResultEnvelope) -
     db.add(row)
 
     task = await db.get(WorkerTask, result.task_id)
+    success = bool(result.payload.get("success", True))
     if task:
-        success = bool(result.payload.get("success", True))
         task.status = WorkerTaskStatus.done if success else WorkerTaskStatus.failed
         task.completed_at = datetime.utcnow()
         task.error = None if success else str(result.payload.get("error") or "worker execution failed")
+
+        action_id = task.payload.get("action_id")
+        if action_id:
+            action = await db.get(ActionHistory, action_id)
+            if action:
+                action.status = ActionStatus.completed if success else ActionStatus.failed
+                action.completed_at = datetime.utcnow()
+                action.result = result.payload
+                action.error = None if success else str(result.payload.get("error") or "worker execution failed")
+
+        todo_id = task.payload.get("todo_id")
+        if todo_id:
+            todo = await db.get(TodoStep, todo_id)
+            if todo:
+                todo.status = ActionStatus.completed if success else ActionStatus.failed
+                todo.executed_at = todo.executed_at or datetime.utcnow()
+                todo.completed_at = datetime.utcnow()
+                todo.result = result.payload
+                todo.error = None if success else str(result.payload.get("error") or "worker execution failed")
 
     await db.flush()
     return row
@@ -198,3 +220,28 @@ async def list_worker_health(db: AsyncSession) -> dict:
     ).scalar_one()
 
     return {"workers": workers, "queue_depth": queue_depth}
+
+
+async def get_worker_metrics(db: AsyncSession) -> dict:
+    now = datetime.utcnow()
+    queued = (await db.execute(select(func.count()).select_from(WorkerTask).where(WorkerTask.status == WorkerTaskStatus.queued))).scalar_one()
+    failed = (await db.execute(select(func.count()).select_from(WorkerTask).where(WorkerTask.status.in_([WorkerTaskStatus.failed, WorkerTaskStatus.dead_letter])))).scalar_one()
+
+    lat_rows = (await db.execute(select(WorkerTask).where(WorkerTask.completed_at.is_not(None), WorkerTask.started_at.is_not(None)).limit(200))).scalars().all()
+    if lat_rows:
+        avg_latency = sum((r.completed_at - r.started_at).total_seconds() for r in lat_rows) / len(lat_rows)
+    else:
+        avg_latency = 0.0
+
+    workers = (await db.execute(select(WorkerNode))).scalars().all()
+    heartbeat_freshness = {
+        w.worker_id: max((now - w.last_seen).total_seconds(), 0.0)
+        for w in workers
+    }
+
+    return {
+        "queue_depth": queued,
+        "task_failure_count": failed,
+        "avg_task_latency_seconds": round(avg_latency, 3),
+        "heartbeat_freshness_seconds": heartbeat_freshness,
+    }

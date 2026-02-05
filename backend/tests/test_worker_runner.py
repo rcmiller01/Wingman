@@ -44,6 +44,25 @@ def test_task_runner_collect_facts(monkeypatch):
     assert payload["collected_counts"] == {"docker": 2, "proxmox": 1}
 
 
+def test_task_runner_execute_script_success():
+    task = WorkerTaskEnvelope(
+        task_id="task-script",
+        task_type="execute_script",
+        idempotency_key="task-script:1",
+        worker_id="w1",
+        site_name="default",
+        created_at=datetime.now(timezone.utc),
+        timeout_seconds=20,
+        payload={"action": "run_bash", "target": "local://worker", "params": {"command": "echo hi", "timeout": 5}},
+    )
+
+    payload_type, payload = asyncio.run(TaskRunner().run(task))
+
+    assert payload_type == "execution_result"
+    assert payload["success"] is True
+    assert payload["result"]["plugin_id"] == "script"
+
+
 def test_task_runner_unknown_task_type():
     task = WorkerTaskEnvelope(
         task_id="task-unknown",

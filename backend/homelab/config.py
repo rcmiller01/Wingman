@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     webhook_url: str | None = None
     webhook_secret: str | None = None
 
+
+    # Worker delegation
+    worker_delegation_enabled: bool = False
+    worker_default_id: str = "worker-local-1"
+    worker_site_name: str = "default"
+
     # OpenTelemetry (optional)
     otel_endpoint: str | None = None
     otel_service_name: str = "homelab-copilot-backend"

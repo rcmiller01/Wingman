@@ -14,6 +14,7 @@ from homelab.workers.schemas import (
 from homelab.workers.service import (
     claim_next_task,
     enqueue_worker_task,
+    get_worker_metrics,
     list_worker_health,
     mark_task_running,
     register_worker,
@@ -93,3 +94,12 @@ async def submit_result_endpoint(
 @router.get("/health")
 async def worker_health_endpoint(db: AsyncSession = Depends(get_db)) -> dict:
     return await list_worker_health(db)
+
+
+@router.get("/metrics")
+async def worker_metrics_endpoint(db: AsyncSession = Depends(get_db)) -> dict:
+    metrics = await get_worker_metrics(db)
+    # aggregate offline backlog from worker-reported capabilities
+    workers = (await list_worker_health(db)).get("workers", [])
+    metrics["offline_backlog_size"] = sum((w.get("capabilities") or {}).get("offline_backlog_size", 0) for w in workers)
+    return metrics
