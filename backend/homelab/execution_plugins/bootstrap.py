@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .docker_plugin import DockerPlugin
+from .script_plugin import ScriptPlugin
 from .registry import PluginRegistry
 
 
@@ -11,6 +12,7 @@ def build_default_registry() -> PluginRegistry:
 
     registry = PluginRegistry()
     registry.register(DockerPlugin())
+    registry.register(ScriptPlugin())
     return registry
 
 

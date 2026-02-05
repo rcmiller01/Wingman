@@ -21,6 +21,7 @@ This backlog turns the v2 Phase 1 anchor into an execution-ordered set of ticket
 - ✅ `PH1-ADR-001` completed: `docs/adr/0001-phase1-contracts-and-boundaries.md`.
 - ✅ `PH1-EXEC-002` completed: base package added at `backend/homelab/execution_plugins/` with tests in `backend/tests/execution_plugins/test_registry.py`.
 - ✅ `PH1-EXEC-003` completed: Docker plugin added with validation + adapter failure coverage in `backend/tests/execution_plugins/test_docker_plugin.py`.
+- ✅ `PH1-EXEC-004` completed: Script plugin added with timeout/blocklist guardrails and tests in `backend/tests/execution_plugins/test_script_plugin.py`.
 
 ---
 

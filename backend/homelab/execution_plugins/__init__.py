@@ -11,6 +11,7 @@ from .errors import (
 from .models import PluginAction, PluginExecutionResult
 from .registry import PluginRegistry
 from .docker_plugin import DockerPlugin
+from .script_plugin import ScriptPlugin
 from .bootstrap import execution_registry, build_default_registry
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "PluginNotFoundError",
     "PluginValidationError",
     "DockerPlugin",
+    "ScriptPlugin",
     "execution_registry",
     "build_default_registry",
 ]
