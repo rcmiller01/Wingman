@@ -24,6 +24,16 @@ This backlog turns the v2 Phase 1 anchor into an execution-ordered set of ticket
 - ✅ `PH1-EXEC-004` completed: Script plugin added with timeout/blocklist guardrails and tests in `backend/tests/execution_plugins/test_script_plugin.py`.
 - ✅ `PH1-EXEC-005` completed: `PlanExecutor` now routes Docker lifecycle actions through plugin registry with Proxmox legacy fallback and coverage in `backend/tests/test_plan_executor_plugins.py`.
 - ✅ `PH1-WKR-006` completed: worker skeleton added at `backend/worker/` with config, loop entrypoint, heartbeat client stub, runner scaffold, and tests in `backend/tests/test_worker_service_skeleton.py`.
+- ✅ `PH1-WKR-007` completed: worker envelope schemas and task claim/result endpoints added via `backend/homelab/workers/schemas.py` and `backend/homelab/api/workers.py`.
+- ✅ `PH1-QUE-008` completed: `worker_tasks` queue persistence + `pg_notify` producer/claim flow added in `backend/homelab/storage/models.py` and `backend/homelab/workers/service.py`.
+- ✅ `PH1-WKR-009` completed: worker registration/heartbeat persistence and `/api/workers/health` summary implemented.
+- ✅ `PH1-WKR-010` completed: worker task runner now handles `collect_facts` tasks and emits typed facts envelopes.
+- ✅ `PH1-WKR-011` completed: worker now supports `execute_script` tasks with structured policy/error metadata via script plugin.
+- ✅ `PH1-CP-012` completed: PlanExecutor can delegate eligible actions to worker queue with action/todo reconciliation on result submit.
+- ✅ `PH1-OFF-013` completed: offline buffer writer with atomic JSON spool files, retention, and eviction added under `backend/worker/offline.py`.
+- ✅ `PH1-OFF-014` completed: newest-first replay with ack-delete semantics implemented in worker runtime loop.
+- ✅ `PH1-OBS-015` completed: queue/worker metrics and health endpoints provide queue depth, failures, latency, heartbeat freshness, and offline backlog reporting.
+- ✅ `PH1-QA-016` completed: phase validation matrix expanded with worker runner/offline tests and operational runbook at `docs/runbooks/phase1-worker-operations.md`.
 
 ---
 

@@ -14,6 +14,11 @@ from homelab.storage.models import (
     IncidentStatus,
     ActionTemplate,
     ActionStatus,
+    WorkerTask,
+    WorkerNode,
+    WorkerResult,
+    WorkerTaskStatus,
+    WorkerStatus,
 )
 
 __all__ = [
@@ -34,4 +39,9 @@ __all__ = [
     "IncidentStatus",
     "ActionTemplate",
     "ActionStatus",
+    "WorkerTask",
+    "WorkerNode",
+    "WorkerResult",
+    "WorkerTaskStatus",
+    "WorkerStatus",
 ]

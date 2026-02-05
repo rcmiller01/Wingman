@@ -20,6 +20,7 @@ from homelab.api.skills import router as skills_router
 from homelab.api.executions import router as executions_router
 from homelab.api.auth import router as auth_router
 from homelab.api.safety import router as safety_router
+from homelab.api.workers import router as workers_router
 from homelab.scheduler import start_scheduler, stop_scheduler
 from homelab.rag.rag_indexer import rag_indexer
 from homelab.llm.providers import llm_manager
@@ -93,6 +94,7 @@ app.include_router(todos_router)
 app.include_router(settings_router)
 app.include_router(skills_router)
 app.include_router(executions_router)
+app.include_router(workers_router)
 
 
 @app.get("/")
