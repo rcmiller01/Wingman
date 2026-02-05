@@ -255,3 +255,79 @@ class AccessLog(Base):
     client_ip: Mapped[str | None] = mapped_column(String(50), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class WorkerTaskStatus(str, PyEnum):
+    queued = "queued"
+    claimed = "claimed"
+    running = "running"
+    done = "done"
+    failed = "failed"
+    dead_letter = "dead_letter"
+
+
+class WorkerStatus(str, PyEnum):
+    online = "online"
+    offline = "offline"
+    degraded = "degraded"
+
+
+class WorkerTask(Base):
+    """Persistent worker task queue entry for pg_notify dispatch."""
+
+    __tablename__ = "worker_tasks"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    task_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    site_name: Mapped[str] = mapped_column(String(255), nullable=False, default="default")
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=60)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+
+    status: Mapped[WorkerTaskStatus] = mapped_column(Enum(WorkerTaskStatus), nullable=False, default=WorkerTaskStatus.queued, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_retry_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+
+    __table_args__ = (
+        Index("ix_worker_tasks_status_retry", "status", "next_retry_at"),
+    )
+
+
+class WorkerNode(Base):
+    """Worker registration and heartbeat state."""
+
+    __tablename__ = "worker_nodes"
+
+    worker_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    site_name: Mapped[str] = mapped_column(String(255), nullable=False, default="default")
+    capabilities: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[WorkerStatus] = mapped_column(Enum(WorkerStatus), nullable=False, default=WorkerStatus.online, index=True)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class WorkerResult(Base):
+    """Worker result envelope persistence for idempotent reconciliation."""
+
+    __tablename__ = "worker_results"
+
+    id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
+    task_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    worker_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    payload_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    received_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        Index("ix_worker_results_task_idem", "task_id", "idempotency_key", unique=True),
+    )
