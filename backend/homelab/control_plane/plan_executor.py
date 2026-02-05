@@ -1,116 +1,156 @@
 """Plan Executor - Safely executes approved actions."""
 
-import asyncio
+from __future__ import annotations
+
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from homelab.storage.models import ActionHistory, ActionTemplate, ActionStatus
-from homelab.adapters.docker_adapter import docker_adapter
 from homelab.adapters.proxmox_adapter import proxmox_adapter
+from homelab.execution_plugins import PluginAction, execution_registry
+
 
 class PlanExecutor:
     """Executes actions and updates history."""
-    
+
     async def execute_action(self, db: AsyncSession, action_id: str):
         """Execute a single approved action."""
-        
-        # 1. Fetch Action
+
         result = await db.execute(select(ActionHistory).where(ActionHistory.id == action_id))
         action = result.scalar_one_or_none()
         if not action or action.status != ActionStatus.approved:
             print(f"[PlanExecutor] Cannot execute {action_id}: invalid status {action.status}")
             return False
-            
+
         print(f"[PlanExecutor] Executing {action.action_template} on {action.target_resource}")
-        
-        # 2. Update status to executing
+
         action.status = ActionStatus.executing
         action.executed_at = datetime.utcnow()
         await db.commit()
-        
+
         success = False
         error = None
         result_data = None
-        
+
         try:
-            # 3. Dispatch to specific handler based on template
-            if action.action_template == ActionTemplate.restart_resource:
-                success, result_data, error = await self._restart_resource(action)
-            elif action.action_template == ActionTemplate.start_resource:
-                success, result_data, error = await self._start_resource(action)
-            elif action.action_template == ActionTemplate.stop_resource:
-                success, result_data, error = await self._stop_resource(action)
-            else:
-                error = f"Unsupported action template: {action.action_template}"
-                
+            success, result_data, error = await self._dispatch_action(action)
         except Exception as e:
             error = f"Execution error: {str(e)}"
             import traceback
             traceback.print_exc()
 
-        # 4. Update Final Status
         action.status = ActionStatus.completed if success else ActionStatus.failed
         action.completed_at = datetime.utcnow()
         action.result = result_data or {}
         action.error = error
         await db.commit()
-        
+
         return success
 
-    async def _restart_resource(self, action: ActionHistory) -> tuple[bool, dict | None, str | None]:
-        """Specific handler for restart_resource action."""
-        target = action.target_resource
-        
-        if target.startswith("docker://"):
-            container_id = target.split("://")[-1]
-            try:
-                # Use longer timeout for operations
-                timeout = action.parameters.get("timeout", 10)
-                await docker_adapter.restart_container(container_id, timeout=timeout)
-                return True, {"message": f"Container {container_id} restarted"}, None
-            except Exception as e:
-                return False, None, str(e)
+    async def _dispatch_action(self, action: ActionHistory) -> tuple[bool, dict | None, str | None]:
+        if action.action_template not in {
+            ActionTemplate.restart_resource,
+            ActionTemplate.start_resource,
+            ActionTemplate.stop_resource,
+        }:
+            return False, None, f"Unsupported action template: {action.action_template}"
 
-        elif "proxmox://" in target:
-            # Parse proxmox resource ref
-            # proxmox://pve/lxc/100
-            parts = target.split("://")[-1].split("/")
-            node = parts[0]
-            type_str = parts[1]
-            vmid = int(parts[2])
-            
-            try:
-                await proxmox_adapter.reboot_resource(node, type_str, vmid)
+        return await self._execute_resource_action(
+            action_template=action.action_template,
+            target=action.target_resource,
+            raw_parameters=action.parameters or {},
+        )
+
+    async def _execute_resource_action(
+        self,
+        action_template: ActionTemplate,
+        target: str,
+        raw_parameters: dict,
+    ) -> tuple[bool, dict | None, str | None]:
+        """Execute a resource action using plugin routing where available."""
+
+        params = self._extract_effective_params(raw_parameters)
+
+        if target.startswith("docker://"):
+            return await self._execute_docker_via_plugin(action_template, target, params)
+
+        if target.startswith("proxmox://"):
+            return await self._execute_proxmox_legacy(action_template, target)
+
+        return False, None, f"Action not supported for {target}"
+
+    def _extract_effective_params(self, raw_parameters: dict) -> dict:
+        """Extract effective parameters from either direct or wrapped todo shape."""
+
+        nested_params = raw_parameters.get("params")
+        if isinstance(nested_params, dict):
+            return nested_params
+        return raw_parameters
+
+    async def _execute_docker_via_plugin(
+        self,
+        action_template: ActionTemplate,
+        target: str,
+        params: dict,
+    ) -> tuple[bool, dict | None, str | None]:
+        action_map = {
+            ActionTemplate.restart_resource: "restart",
+            ActionTemplate.start_resource: "start",
+            ActionTemplate.stop_resource: "stop",
+        }
+        plugin_action_name = action_map.get(action_template)
+        if not plugin_action_name:
+            return False, None, f"No docker plugin action mapping for {action_template}"
+
+        plugin = execution_registry.get("docker")
+        plugin_action = PluginAction(
+            action=plugin_action_name,
+            target=target,
+            params=params,
+            metadata={"source": "plan_executor"},
+        )
+
+        pre_ok, pre_msg = await plugin.validate_pre(plugin_action)
+        if not pre_ok:
+            return False, None, f"Plugin pre-validation failed: {pre_msg}"
+
+        result = await plugin.execute(plugin_action)
+
+        post_ok, post_msg = await plugin.validate_post(plugin_action, result)
+        if not post_ok:
+            return False, result, f"Plugin post-validation failed: {post_msg}"
+
+        if not result.get("success"):
+            return False, result, result.get("error") or "Docker plugin execution failed"
+
+        return True, result, None
+
+    async def _execute_proxmox_legacy(
+        self,
+        action_template: ActionTemplate,
+        target: str,
+    ) -> tuple[bool, dict | None, str | None]:
+        """Legacy path retained until Proxmox execution plugin is introduced."""
+
+        if action_template != ActionTemplate.restart_resource:
+            return False, None, f"{action_template} not supported for {target}"
+
+        parts = target.split("://")[-1].split("/")
+        if len(parts) < 3:
+            return False, None, f"Invalid Proxmox target format: {target}"
+
+        node = parts[0]
+        type_str = parts[1]
+        vmid = int(parts[2])
+
+        try:
+            ok = await proxmox_adapter.reboot_resource(node, type_str, vmid)
+            if ok:
                 return True, {"message": f"Reboot sent to {type_str} {vmid} on {node}"}, None
-            except Exception as e:
-                return False, None, str(e)
-                
-        return False, None, f"Restart not supported for {target}"
+            return False, None, f"Reboot failed for {type_str} {vmid} on {node}"
+        except Exception as e:
+            return False, None, str(e)
 
-    async def _start_resource(self, action: ActionHistory) -> tuple[bool, dict | None, str | None]:
-        """Start a resource."""
-        target = action.target_resource
-        if target.startswith("docker://"):
-            container_id = target.split("://")[-1]
-            try:
-                await docker_adapter.start_container(container_id)
-                return True, {"message": f"Container {container_id} started"}, None
-            except Exception as e:
-                return False, None, str(e)
-        return False, None, f"Start not supported for {target}"
 
-    async def _stop_resource(self, action: ActionHistory) -> tuple[bool, dict | None, str | None]:
-        """Stop a resource."""
-        target = action.target_resource
-        if target.startswith("docker://"):
-            container_id = target.split("://")[-1]
-            try:
-                await docker_adapter.stop_container(container_id)
-                return True, {"message": f"Container {container_id} stopped"}, None
-            except Exception as e:
-                return False, None, str(e)
-        return False, None, f"Stop not supported for {target}"
-
-# Singleton
 plan_executor = PlanExecutor()
