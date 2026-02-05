@@ -22,11 +22,11 @@ def configure_otel(app, engine) -> None:
     resource = Resource.create({"service.name": settings.otel_service_name})
     tracer_provider = TracerProvider(resource=resource)
 
+    # Only configure OTLP exporter if endpoint is provided
     if settings.otel_endpoint:
         exporter = OTLPSpanExporter(endpoint=settings.otel_endpoint, insecure=True)
-    else:
-        exporter = OTLPSpanExporter()
-    tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
+        tracer_provider.add_span_processor(BatchSpanProcessor(exporter))
+
     trace.set_tracer_provider(tracer_provider)
 
     FastAPIInstrumentor.instrument_app(app)
