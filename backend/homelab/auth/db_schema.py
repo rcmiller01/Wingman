@@ -9,7 +9,8 @@ from sqlalchemy import ForeignKey, Index
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 
-from homelab.storage.models import Base, String, DateTime
+from sqlalchemy import String, DateTime
+from homelab.db_base import Base
 
 
 class UserDB(Base):

@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from homelab.storage.database import get_db
 from homelab.auth.oidc import OIDCClient
-from homelab.auth.db_models import UserDB, SessionDB, ServiceAccountDB
+# from homelab.auth.db_schema import UserDB, SessionDB, ServiceAccountDB # Moved to local scope
 from homelab.auth.models import Role, Permission, role_has_permission
 from datetime import datetime, timezone
 
@@ -44,6 +44,9 @@ async def get_current_user_from_token(
     
     token = credentials.credentials
     token_hash = _hash_token(token)
+    
+    # Local import to avoid circular dependency
+    from homelab.auth.db_schema import UserDB, SessionDB
     
     # Look up session
     query = (
@@ -95,6 +98,9 @@ async def get_current_user_from_api_key(
     
     api_key_hash = _hash_token(x_api_key)
     
+    # Local import
+    from homelab.auth.db_schema import ServiceAccountDB
+
     # Look up service account
     query = (
         select(ServiceAccountDB)

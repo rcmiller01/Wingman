@@ -1,13 +1,9 @@
 """Database connection and session management."""
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+# from sqlalchemy.orm import DeclarativeBase # Moved to db_base.py
+from homelab.db_base import Base
 from homelab.config import get_settings
-
-
-class Base(DeclarativeBase):
-    """Base class for all SQLAlchemy models."""
-    pass
 
 
 settings = get_settings()

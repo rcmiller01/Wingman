@@ -467,7 +467,7 @@ class SkillRunner:
                 # Escalate after max retries exhausted
                 execution.status = SkillExecutionStatus.escalated
                 execution.escalation_reason = f"Failed after {execution.retry_count} retry attempt(s): {e}"
-                    execution.completed_at = datetime.now(timezone.utc)
+                execution.completed_at = datetime.now(timezone.utc)
                 self._add_log(execution, f"ESCALATED: Max retries ({MAX_RETRIES}) exhausted")
         
         # Always record to ActionHistory for audit trail
