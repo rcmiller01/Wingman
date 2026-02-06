@@ -231,6 +231,14 @@ For each unit:
    - What got easier? What confusion remains?
    - Capture follow-on refactors before next unit.
 
+### Unit Review Gate Template (required before coding starts)
+
+- **Acceptance criteria:** specific, testable outcomes for the unit.
+- **Test strategy:** unit/contract/integration coverage plan + fixtures needed.
+- **Rollback path:** concrete migration/application rollback steps.
+- **Deprecation impact:** any temporary adapter/translator and its removal date.
+- **Owners:** backend + frontend approvers for contract-impacting changes.
+
 ### Anti-Debt Checklist
 
 - Did we remove duplication versus adding it?
@@ -269,6 +277,12 @@ Success signal: adding a new incident type should require adding mapping logic i
   - **Mitigation:** central confidence normalization utility + invariant tests.
 - **Risk:** UI introduces divergent narrative text.
   - **Mitigation:** mandate backend `summary_sentence` as source of truth.
+
+### Rollback Triggers
+
+- Contract test regressions for canonical incident API responses.
+- Incident creation failures above agreed SLO thresholds after cutover.
+- Inability to hydrate legacy incidents through the compatibility adapter.
 
 ---
 
