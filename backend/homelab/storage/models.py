@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from uuid import uuid4
-from sqlalchemy import String, Text, DateTime, Float, Boolean, JSON, ForeignKey, Enum, Index, Integer
+from sqlalchemy import String, Text, DateTime, Float, Boolean, JSON, ForeignKey, Enum, Index, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from homelab.storage.database import Base
@@ -255,6 +255,46 @@ class AccessLog(Base):
     client_ip: Mapped[str | None] = mapped_column(String(50), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
     duration_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+
+class GraphNode(Base):
+    """Stable topology node representing an observed entity."""
+
+    __tablename__ = "graph_nodes"
+
+    node_id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    entity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    entity_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    site_id: Mapped[str] = mapped_column(String(128), nullable=False, default="default")
+    attrs: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+
+    __table_args__ = (
+        UniqueConstraint("entity_type", "entity_ref", "site_id", name="uq_graph_nodes_entity_identity"),
+        Index("ix_graph_nodes_site_entity", "site_id", "entity_type"),
+    )
+
+
+class GraphEdge(Base):
+    """Directed relationship between topology nodes with provenance."""
+
+    __tablename__ = "graph_edges"
+
+    edge_id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: str(uuid4()))
+    from_node_id: Mapped[str] = mapped_column(String(64), ForeignKey("graph_nodes.node_id", ondelete="CASCADE"), nullable=False)
+    to_node_id: Mapped[str] = mapped_column(String(64), ForeignKey("graph_nodes.node_id", ondelete="CASCADE"), nullable=False)
+    edge_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    is_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    stale_marked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("from_node_id", "to_node_id", "edge_type", name="uq_graph_edges_identity"),
+        Index("ix_graph_edges_from_type", "from_node_id", "edge_type"),
+        Index("ix_graph_edges_to_type", "to_node_id", "edge_type"),
+    )
 
 
 class WorkerTaskStatus(str, PyEnum):

@@ -19,6 +19,8 @@ from homelab.storage.models import (
     WorkerResult,
     WorkerTaskStatus,
     WorkerStatus,
+    GraphNode,
+    GraphEdge,
 )
 
 __all__ = [
@@ -44,4 +46,6 @@ __all__ = [
     "WorkerResult",
     "WorkerTaskStatus",
     "WorkerStatus",
+    "GraphNode",
+    "GraphEdge",
 ]
