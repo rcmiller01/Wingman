@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from homelab.storage.database import get_db
-from homelab.auth.oidc import OIDCClient
 # from homelab.auth.db_schema import UserDB, SessionDB, ServiceAccountDB # Moved to local scope
 from homelab.auth.models import Role, Permission, role_has_permission
 from datetime import datetime, timezone
