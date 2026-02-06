@@ -61,6 +61,8 @@ Implement a minimal baseline engine first (no advanced ML required):
 
 **Exit criteria:** Wingman can reliably say “this is unusual” and “this happened before.”
 
+Implementation plan: see `docs/primitive-b-baseline-memory-implementation-plan.md`.
+
 #### Primitive C — Canonical daily status narrative
 
 Define one authoritative narrative output available in API/UI/chat:
@@ -74,7 +76,18 @@ Define one authoritative narrative output available in API/UI/chat:
 
 **Exit criteria:** users can ask “what’s wrong right now?” and receive a stable, trustworthy answer without dashboard archaeology.
 
+Implementation plan: see `docs/primitive-c-status-narrative-implementation-plan.md`.
+
 ### Consolidated Delivery Plan (Overlay on existing v2 phases)
+
+### Implementation Document Set (Ordered Sequence)
+
+1. `docs/primitive-a-incident-object-implementation-plan.md`
+2. `docs/primitive-b-baseline-memory-implementation-plan.md`
+3. `docs/primitive-c-status-narrative-implementation-plan.md`
+4. `docs/mlc1-relationship-graph-implementation-plan.md`
+
+This sequence is intentional: contract-first incident canonicalization enables reliable memory, memory enables trustworthy narratives, and all three improve relationship-graph reasoning quality.
 
 #### Phase 1A (Immediate, 1-2 weeks): Incident Canonicalization
 - Introduce/upgrade shared `Incident` schema across detector, API, and UI payloads
@@ -95,6 +108,8 @@ Define one authoritative narrative output available in API/UI/chat:
 - Build dependency graph model (`host -> vm -> container -> service -> resource`)
 - Attach incidents to graph nodes + edges for blast radius reasoning
 - Feed topology-aware context into planner and narrative generator
+
+Implementation plan: see `docs/mlc1-relationship-graph-implementation-plan.md`.
 
 ### Mapping to Existing v2 Themes
 
