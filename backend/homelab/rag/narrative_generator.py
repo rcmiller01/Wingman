@@ -72,7 +72,7 @@ class NarrativeGenerator:
         
         if narrative:
             narrative.narrative_text = narrative_text
-            narrative.updated_at = datetime.utcnow()
+            narrative.updated_at = datetime.now(timezone.utc)
         else:
             narrative = IncidentNarrative(
                 incident_id=incident_id,

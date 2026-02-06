@@ -82,7 +82,7 @@ class DockerAdapter:
         
         try:
             container = self.client.containers.get(container_id)
-            since = datetime.utcnow() - timedelta(minutes=since_minutes)
+            since = datetime.now(timezone.utc) - timedelta(minutes=since_minutes)
             
             # Fetch stdout and stderr separately for source tagging
             logs_stdout = container.logs(
@@ -445,10 +445,10 @@ class DockerAdapter:
                 # Convert to naive datetime (UTC) for PostgreSQL
                 timestamp = timestamp.replace(tzinfo=None)
             else:
-                timestamp = datetime.utcnow()
+                timestamp = datetime.now(timezone.utc)
                 content = line
         except Exception:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
             content = line
         
         return {

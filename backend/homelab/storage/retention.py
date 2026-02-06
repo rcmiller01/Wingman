@@ -125,7 +125,7 @@ class RetentionManager:
         
         Returns naive datetime (UTC) for compatibility with database columns.
         """
-        return datetime.utcnow() - timedelta(days=retention_days)
+        return datetime.now(timezone.utc) - timedelta(days=retention_days)
     
     async def cleanup_executions(self, executions: dict) -> int:
         """Clean up old executions from in-memory store.

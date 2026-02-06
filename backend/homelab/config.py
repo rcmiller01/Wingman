@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     webhook_secret: str | None = None
 
 
+    # Execution plugins (Phase 1)
+    execution_plugin_enabled: bool = True
+
     # Worker delegation
     worker_delegation_enabled: bool = False
     worker_default_id: str = "worker-local-1"
@@ -96,6 +99,17 @@ class Settings(BaseSettings):
     telegram_chat_id: str | None = None
     make_webhook_url: str | None = None
     plane_webhook_url: str | None = None
+
+    # Plugin Marketplace (Phase 4)
+    marketplace_enabled: bool = False
+    marketplace_repo: str = "wingman-plugins/registry"
+    marketplace_branch: str = "main"
+    plugin_auto_update: bool = False
+    plugins_dir: str = "./plugins"  # Base directory for plugins
+
+    # Generative UI (Phase 5)
+    dashboard_generation_enabled: bool = True
+    dashboard_default_refresh: int = 60  # Default refresh interval (seconds)
 
 
 @lru_cache

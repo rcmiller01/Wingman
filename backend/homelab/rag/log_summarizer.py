@@ -27,7 +27,7 @@ class LogSummarizer:
             )
 
         # Target logs expiring in the next 24 hours (or already expired but not purged)
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         retention_window_start = now - timedelta(days=retention_days)
         retention_window_end = now + timedelta(days=1)
         
@@ -66,7 +66,7 @@ class LogSummarizer:
             # 3. Store Summary
             start_date = logs[0].timestamp
             end_date = logs[-1].timestamp
-            retention_date = datetime.utcnow() + timedelta(days=365)
+            retention_date = datetime.now(timezone.utc) + timedelta(days=365)
             
             summary = LogSummary(
                 resource_ref=resource_ref,

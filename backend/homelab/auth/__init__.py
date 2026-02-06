@@ -1,75 +1,49 @@
-"""Authentication and authorization for Wingman.
+"""Authentication package public exports.
 
-Simple role-based access control:
-- viewer: read-only access
-- operator: create executions, execute Tier 1 (low-risk)
-- approver: approve/reject Tier 2/3 executions
-- admin: lab allowlists, dangerous toggles, all permissions
+Keep this module lightweight so submodule imports such as
+``from homelab.auth.db_schema import UserDB`` do not pull optional
+OIDC dependencies at import time.
 """
 
-from .models import (
+from typing import Annotated
+
+from fastapi import Depends
+
+from homelab.auth.models import (
     Role,
-    User,
     Permission,
-    ROLE_PERMISSIONS,
+    User,
+    role_has_permission,
+    get_permissions_for_role,
     get_approval_permission_for_risk,
     get_execute_permission_for_risk,
 )
-from .middleware import (
+from homelab.auth.store import user_store
+from homelab.auth.tokens import create_session_token
+from homelab.auth.middleware import (
     get_current_user,
     require_auth,
     require_role,
     require_permission,
-    AuthenticationError,
-    AuthorizationError,
-    RateLimitError,
     user_context,
 )
-from .tokens import (
-    create_api_key,
-    validate_api_key,
-    create_session_token,
-    validate_session_token,
-)
-from .store import user_store
-from .secrets import (
-    get_secrets_config,
-    get_rate_limiter,
-    get_key_rotation_manager,
-    get_auth_secret,
-    hash_key_secure,
-    verify_key_secure,
-)
+
+CurrentUser = Annotated[User, Depends(get_current_user)]
 
 __all__ = [
-    # Models
     "Role",
-    "User", 
     "Permission",
-    "ROLE_PERMISSIONS",
-    "get_approval_permission_for_risk",
-    "get_execute_permission_for_risk",
-    # Middleware
+    "User",
+    "role_has_permission",
+    "get_permissions_for_role",
+    "user_store",
+    "create_session_token",
     "get_current_user",
     "require_auth",
     "require_role",
     "require_permission",
-    "AuthenticationError",
-    "AuthorizationError",
-    "RateLimitError",
+    "get_approval_permission_for_risk",
+    "get_execute_permission_for_risk",
     "user_context",
-    # Tokens
-    "create_api_key",
-    "validate_api_key",
-    "create_session_token",
-    "validate_session_token",
-    # Store
-    "user_store",
-    # Secrets & hardening
-    "get_secrets_config",
-    "get_rate_limiter",
-    "get_key_rotation_manager",
-    "get_auth_secret",
-    "hash_key_secure",
-    "verify_key_secure",
+    "CurrentUser",
 ]

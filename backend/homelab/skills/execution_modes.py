@@ -376,7 +376,7 @@ class ExecutionModeManager:
         # Generic success for unknown skills
         return MockResponse(
             success=True,
-            output={"mock": True, "skill_id": skill_id, "timestamp": datetime.utcnow().isoformat()}
+            output={"mock": True, "skill_id": skill_id, "timestamp": datetime.now(timezone.utc).isoformat()}
         )
     
     # Hooks for test observability

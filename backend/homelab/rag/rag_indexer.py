@@ -185,7 +185,7 @@ class RAGIndexer:
                     "narrative_id": narrative_id,
                     "incident_id": incident_id,
                     "text": narrative_text[:2000],  # Store truncated for retrieval
-                    "indexed_at": datetime.utcnow().isoformat(),
+                    "indexed_at": datetime.now(timezone.utc).isoformat(),
                     **(metadata or {}),
                 },
             )
@@ -229,7 +229,7 @@ class RAGIndexer:
                     "resource_ref": resource_ref,
                     "text": summary_text[:2000],
                     "time_range": time_range,
-                    "indexed_at": datetime.utcnow().isoformat(),
+                    "indexed_at": datetime.now(timezone.utc).isoformat(),
                     **(metadata or {}),
                 },
             )

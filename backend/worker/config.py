@@ -4,6 +4,12 @@ from functools import lru_cache
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# Hardcoded safety constraints from v2 roadmap.
+# These are NOT configurable — workers must never use cloud LLM.
+ALLOW_CLOUD_LLM: bool = False
+WORKER_MODE: str = "worker"
+
+
 class WorkerSettings(BaseSettings):
     """Environment-driven settings for worker runtime."""
 
@@ -22,16 +28,23 @@ class WorkerSettings(BaseSettings):
     heartbeat_interval_seconds: float = 30.0
     shutdown_grace_seconds: float = 5.0
 
-    # Offline buffer/replay
-    offline_dir: str = "/tmp/wingman-worker-offline"
+    # Offline buffer/replay — defaults aligned with ADR 0001
+    offline_dir: str = "/data/offline"
     offline_max_files: int = 500
-    offline_max_age_seconds: int = 604800
+    offline_max_mb: int = 100
+    offline_max_age_seconds: int = 86400  # 24 hours per ADR
     offline_replay_batch_size: int = 25
     offline_replay_interval_seconds: float = 0.05
 
-    # Phase-1 safety constraints from roadmap
-    allow_cloud_llm: bool = False
-    mode: str = "worker"
+    @property
+    def allow_cloud_llm(self) -> bool:
+        """Hardcoded — workers never use cloud LLM."""
+        return ALLOW_CLOUD_LLM
+
+    @property
+    def mode(self) -> str:
+        """Hardcoded — always 'worker'."""
+        return WORKER_MODE
 
 
 @lru_cache

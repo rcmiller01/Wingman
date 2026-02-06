@@ -12,7 +12,8 @@ from pathlib import Path
 class OfflineBufferConfig:
     directory: Path
     max_files: int = 500
-    max_age_seconds: int = 7 * 24 * 3600
+    max_mb: int = 100
+    max_age_seconds: int = 86400  # 24 hours per ADR
 
 
 class OfflineBuffer:
@@ -48,13 +49,31 @@ class OfflineBuffer:
     def backlog_size(self) -> int:
         return len(list(self.config.directory.glob("*.json")))
 
+    def backlog_size_mb(self) -> float:
+        total = sum(f.stat().st_size for f in self.config.directory.glob("*.json"))
+        return total / (1024 * 1024)
+
     def _evict_if_needed(self) -> None:
         files = sorted(self.config.directory.glob("*.json"))
+
+        # Evict by file count (oldest first)
         if len(files) > self.config.max_files:
             for path in files[: len(files) - self.config.max_files]:
                 path.unlink(missing_ok=True)
 
+        # Evict by age
         now = datetime.now(timezone.utc).timestamp()
         for path in self.config.directory.glob("*.json"):
             if now - path.stat().st_mtime > self.config.max_age_seconds:
                 path.unlink(missing_ok=True)
+
+        # Evict by total size (oldest first) — ADR requires 100MB cap
+        max_bytes = self.config.max_mb * 1024 * 1024
+        files = sorted(self.config.directory.glob("*.json"))
+        total = sum(f.stat().st_size for f in files)
+        for path in files:
+            if total <= max_bytes:
+                break
+            size = path.stat().st_size
+            path.unlink(missing_ok=True)
+            total -= size

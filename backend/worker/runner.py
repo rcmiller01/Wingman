@@ -105,3 +105,93 @@ class TaskRunner:
                 "error_code": "EXECUTION_ERROR",
                 "error": str(exc),
             }
+
+    async def _execute_action(self, task: WorkerTaskEnvelope) -> tuple[str, dict[str, Any]]:
+        """Execute a plugin action delegated by the control plane."""
+        payload = task.payload or {}
+        plugin_id = payload.get("plugin_id")
+        action_name = payload.get("action")
+        target = payload.get("target", "")
+        params = payload.get("params", {})
+
+        if not plugin_id or not action_name:
+            return "execution_result", {
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "error": "execute_action requires 'plugin_id' and 'action' in payload",
+            }
+
+        try:
+            plugin = execution_registry.get(plugin_id)
+        except Exception:
+            return "execution_result", {
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "error": f"Plugin not found: {plugin_id}",
+            }
+
+        plugin_action = PluginAction(
+            action=action_name,
+            target=target,
+            params=params,
+            metadata={
+                "task_id": task.task_id,
+                "worker_id": task.worker_id,
+                "source": "worker",
+                "action_id": payload.get("action_id"),
+                "todo_id": payload.get("todo_id"),
+            },
+        )
+
+        try:
+            pre_ok, pre_msg = await plugin.validate_pre(plugin_action)
+            if not pre_ok:
+                return "execution_result", {
+                    "success": False,
+                    "error_code": "VALIDATION_ERROR",
+                    "error": pre_msg,
+                }
+
+            result = await plugin.execute(plugin_action)
+
+            post_ok, post_msg = await plugin.validate_post(plugin_action, result)
+            if not post_ok:
+                await plugin.rollback(plugin_action, result)
+                return "execution_result", {
+                    "success": False,
+                    "error_code": "POSTCHECK_ERROR",
+                    "error": post_msg,
+                    "result": result,
+                }
+
+            if result.get("success"):
+                return "execution_result", {
+                    "success": True,
+                    "error_code": None,
+                    "result": result,
+                    "policy": {"allow_cloud_llm": False, "mode": "worker"},
+                }
+            return "execution_result", {
+                "success": False,
+                "error_code": result.get("error_code") or "EXECUTION_ERROR",
+                "error": result.get("error") or "plugin execution failed",
+                "result": result,
+            }
+        except PluginValidationError as exc:
+            return "execution_result", {
+                "success": False,
+                "error_code": "VALIDATION_ERROR",
+                "error": str(exc),
+            }
+        except TimeoutError as exc:
+            return "execution_result", {
+                "success": False,
+                "error_code": "TIMEOUT_ERROR",
+                "error": str(exc),
+            }
+        except Exception as exc:  # noqa: BLE001
+            return "execution_result", {
+                "success": False,
+                "error_code": "EXECUTION_ERROR",
+                "error": str(exc),
+            }

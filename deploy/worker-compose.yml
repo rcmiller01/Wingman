@@ -1,0 +1,72 @@
+# Multi-Site Worker Deployment
+# This docker-compose file demonstrates deploying workers to multiple sites
+
+services:
+  # Worker for Site A (e.g., home lab)
+  worker-site-a:
+    build:
+      context: ../backend
+      dockerfile: worker/Dockerfile
+    environment:
+      - WORKER_ID=worker-site-a-01
+      - WORKER_SITE=site-a
+      - CONTROL_PLANE_URL=http://backend:8000
+      - DATABASE_URL=postgresql+asyncpg://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
+      - POLL_INTERVAL_SECONDS=5
+      - HEARTBEAT_INTERVAL_SECONDS=30
+      - OFFLINE_DIR=/app/offline
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # For Docker plugin
+      - worker-site-a-offline:/app/offline
+    restart: unless-stopped
+    networks:
+      - homelab
+
+  # Worker for Site B (e.g., remote datacenter)
+  worker-site-b:
+    build:
+      context: ../backend
+      dockerfile: worker/Dockerfile
+    environment:
+      - WORKER_ID=worker-site-b-01
+      - WORKER_SITE=site-b
+      - CONTROL_PLANE_URL=http://backend:8000
+      - DATABASE_URL=postgresql+asyncpg://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
+      - POLL_INTERVAL_SECONDS=5
+      - HEARTBEAT_INTERVAL_SECONDS=30
+      - OFFLINE_DIR=/app/offline
+    volumes:
+      - worker-site-b-offline:/app/offline
+    restart: unless-stopped
+    networks:
+      - homelab
+
+  # Worker for Site C (e.g., cloud environment)
+  worker-site-c:
+    build:
+      context: ../backend
+      dockerfile: worker/Dockerfile
+    environment:
+      - WORKER_ID=worker-site-c-01
+      - WORKER_SITE=site-c
+      - CONTROL_PLANE_URL=http://backend:8000
+      - DATABASE_URL=postgresql+asyncpg://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
+      - POLL_INTERVAL_SECONDS=5
+      - HEARTBEAT_INTERVAL_SECONDS=30
+      - OFFLINE_DIR=/app/offline
+      # Note: No Docker socket mount - this worker can't use Docker plugin
+    volumes:
+      - worker-site-c-offline:/app/offline
+    restart: unless-stopped
+    networks:
+      - homelab
+
+volumes:
+  worker-site-a-offline:
+  worker-site-b-offline:
+  worker-site-c-offline:
+
+networks:
+  homelab:
+    external: true
+    name: hardcore-hopper_default

@@ -152,16 +152,16 @@ class SkillRunner:
             target=target,
             parameters=sanitized_params,
             status=SkillExecutionStatus.pending_approval,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             incident_id=incident_id,
         )
         
         # Store metadata for audit
-        execution.logs.append(f"[{datetime.utcnow().isoformat()}] Execution created")
-        execution.logs.append(f"[{datetime.utcnow().isoformat()}] Requested by: {requested_by}")
-        execution.logs.append(f"[{datetime.utcnow().isoformat()}] Skill: {skill_id} (hash: {skill_hash})")
-        execution.logs.append(f"[{datetime.utcnow().isoformat()}] Target: {target}")
-        execution.logs.append(f"[{datetime.utcnow().isoformat()}] Risk level: {skill.meta.risk.value}")
+        execution.logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Execution created")
+        execution.logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Requested by: {requested_by}")
+        execution.logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Skill: {skill_id} (hash: {skill_hash})")
+        execution.logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Target: {target}")
+        execution.logs.append(f"[{datetime.now(timezone.utc).isoformat()}] Risk level: {skill.meta.risk.value}")
         
         # SERVER-ENFORCED: Only low-risk skills without confirmation can skip approval
         can_skip = (
@@ -180,7 +180,7 @@ class SkillRunner:
         
         if can_skip:
             execution.status = SkillExecutionStatus.approved
-            execution.approved_at = datetime.utcnow()
+            execution.approved_at = datetime.now(timezone.utc)
             execution.approved_by = "auto-approved:tier1"
             execution.logs.append(f"[{datetime.utcnow().isoformat()}] Auto-approved (Tier 1, low-risk)")
             logger.info(f"[SkillRunner] Auto-approved low-risk skill: {skill_id}")
@@ -235,7 +235,7 @@ class SkillRunner:
             raise ValueError(f"Execution not pending approval (current status: {execution.status.value})")
         
         execution.status = SkillExecutionStatus.approved
-        execution.approved_at = datetime.utcnow()
+        execution.approved_at = datetime.now(timezone.utc)
         execution.approved_by = approved_by
         
         execution.logs.append(f"[{datetime.utcnow().isoformat()}] APPROVED by: {approved_by}")
@@ -291,7 +291,7 @@ class SkillRunner:
         
         # Apply rejection
         execution.status = SkillExecutionStatus.rejected
-        execution.rejected_at = datetime.utcnow()
+        execution.rejected_at = datetime.now(timezone.utc)
         execution.rejected_by = rejected_by
         execution.rejection_reason = reason
         
@@ -417,7 +417,7 @@ class SkillRunner:
         
         execution.status = SkillExecutionStatus.executing
         if not execution.started_at:
-            execution.started_at = datetime.utcnow()
+            execution.started_at = datetime.now(timezone.utc)
         
         self._add_log(execution, "Policy validation passed")
         self._add_log(execution, "Starting execution" + (f" (retry #{execution.retry_count})" if execution.retry_count > 0 else ""))
@@ -448,7 +448,7 @@ class SkillRunner:
             else:
                 execution.status = SkillExecutionStatus.completed
             
-            execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
             
         except Exception as e:
             execution.error = str(e)
@@ -467,7 +467,7 @@ class SkillRunner:
                 # Escalate after max retries exhausted
                 execution.status = SkillExecutionStatus.escalated
                 execution.escalation_reason = f"Failed after {execution.retry_count} retry attempt(s): {e}"
-                execution.completed_at = datetime.utcnow()
+                execution.completed_at = datetime.now(timezone.utc)
                 self._add_log(execution, f"ESCALATED: Max retries ({MAX_RETRIES}) exhausted")
         
         # Always record to ActionHistory for audit trail
@@ -641,7 +641,7 @@ class SkillRunner:
         """
         self._add_log(execution, "Judge audit starting...")
         
-        audit_timestamp = datetime.utcnow().isoformat()
+        audit_timestamp = datetime.now(timezone.utc).isoformat()
         
         # Extract success signal
         action_success = result.get("success", False)

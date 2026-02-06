@@ -51,3 +51,4 @@ coverage/
 backend/prisma/*.db
 backend/prisma/*.db-journal
  - Copy.env
+nul
