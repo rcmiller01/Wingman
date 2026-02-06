@@ -1,6 +1,6 @@
 """SQLAlchemy models for Homelab Copilot."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum as PyEnum
 from uuid import uuid4
 from sqlalchemy import String, Text, DateTime, Float, Boolean, JSON, ForeignKey, Enum, Index, Integer
@@ -63,7 +63,7 @@ class Fact(Base):
     resource_ref: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     fact_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     value: Mapped[dict] = mapped_column(JSON, nullable=False)
-    timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     source: Mapped[str] = mapped_column(String(100), nullable=False)  # "docker", "proxmox", etc.
     
     __table_args__ = (
@@ -98,7 +98,7 @@ class LogSummary(Base):
     period_end: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     log_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0) # Added log_count
     retention_date: Mapped[datetime] = mapped_column(DateTime, nullable=False)  # 12 months from creation
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class FileLogSource(Base):
@@ -112,8 +112,8 @@ class FileLogSource(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     retention_days: Mapped[int] = mapped_column(Integer, nullable=False, default=90)
     last_position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class Incident(Base):
@@ -125,10 +125,10 @@ class Incident(Base):
     status: Mapped[IncidentStatus] = mapped_column(Enum(IncidentStatus), nullable=False, default=IncidentStatus.open)
     affected_resources: Mapped[list] = mapped_column(JSON, nullable=False)  # List of ResourceRefs
     symptoms: Mapped[list] = mapped_column(JSON, nullable=False)  # List of fact IDs / descriptions
-    detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    detected_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     narrative: Mapped["IncidentNarrative | None"] = relationship(back_populates="incident", uselist=False)
@@ -155,8 +155,8 @@ class IncidentNarrative(Base):
     
     narrative_text: Mapped[str] = mapped_column(Text, nullable=False)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # Relationships
     incident: Mapped["Incident"] = relationship(back_populates="narrative")
@@ -185,7 +185,7 @@ class ActionHistory(Base):
     parameters: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[ActionStatus] = mapped_column(Enum(ActionStatus), nullable=False, default=ActionStatus.pending)
     
-    requested_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    requested_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -228,7 +228,7 @@ class TodoStep(Base):
     verification: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     status: Mapped[ActionStatus] = mapped_column(Enum(ActionStatus), nullable=False, default=ActionStatus.pending)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     approved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     executed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -248,7 +248,7 @@ class AccessLog(Base):
     __tablename__ = "access_logs"
     
     id: Mapped[str] = mapped_column(UUID(as_uuid=False), primary_key=True, default=lambda: str(uuid4()))
-    timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    timestamp: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     method: Mapped[str] = mapped_column(String(10), nullable=False)
     path: Mapped[str] = mapped_column(String(500), nullable=False)
     status_code: Mapped[int] = mapped_column(nullable=False)
@@ -290,7 +290,7 @@ class WorkerTask(Base):
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
     claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -310,9 +310,9 @@ class WorkerNode(Base):
     site_name: Mapped[str] = mapped_column(String(255), nullable=False, default="default")
     capabilities: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     status: Mapped[WorkerStatus] = mapped_column(Enum(WorkerStatus), nullable=False, default=WorkerStatus.online, index=True)
-    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    last_seen: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
 
 class WorkerResult(Base):
@@ -326,7 +326,7 @@ class WorkerResult(Base):
     payload_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
-    received_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow, index=True)
+    received_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
 
     __table_args__ = (
         Index("ix_worker_results_task_idem", "task_id", "idempotency_key", unique=True),

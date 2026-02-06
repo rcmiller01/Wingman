@@ -36,6 +36,7 @@ class WorkerService:
             OfflineBufferConfig(
                 directory=Path(settings.offline_dir),
                 max_files=settings.offline_max_files,
+                max_mb=settings.offline_max_mb,
                 max_age_seconds=settings.offline_max_age_seconds,
             )
         )
@@ -56,39 +57,68 @@ class WorkerService:
             },
         )
 
-        await self.client.register(capabilities=self._capabilities())
+        try:
+            await self.client.register(capabilities=self._capabilities())
+        except (httpx.HTTPError, OSError) as exc:
+            logger.warning(
+                "worker_registration_failed",
+                extra={"worker_id": self.settings.worker_id, "error": str(exc)},
+            )
 
         loop = asyncio.get_running_loop()
         while not self._shutdown_event.is_set():
-            await self._replay_offline_buffer()
+            try:
+                await self._replay_offline_buffer()
 
-            now = loop.time()
-            if now - self._last_heartbeat >= self.settings.heartbeat_interval_seconds:
-                await self.client.send_heartbeat(capabilities=self._capabilities())
-                self._last_heartbeat = now
+                now = loop.time()
+                if now - self._last_heartbeat >= self.settings.heartbeat_interval_seconds:
+                    try:
+                        await self.client.send_heartbeat(capabilities=self._capabilities())
+                        self._last_heartbeat = now
+                    except (httpx.HTTPError, OSError) as exc:
+                        logger.warning(
+                            "worker_heartbeat_failed",
+                            extra={"worker_id": self.settings.worker_id, "error": str(exc)},
+                        )
 
-            task = await self.client.claim_task()
-            if task is not None:
                 try:
-                    payload_type, payload = await self.runner.run(task)
-                except Exception as exc:  # noqa: BLE001
-                    payload_type = "execution_result"
-                    payload = {"success": False, "error": str(exc), "error_code": "EXECUTION_ERROR"}
+                    task = await self.client.claim_task()
+                except (httpx.HTTPError, OSError) as exc:
+                    logger.warning(
+                        "worker_claim_failed",
+                        extra={"worker_id": self.settings.worker_id, "error": str(exc)},
+                    )
+                    task = None
 
-                envelope = {
-                    "worker_id": self.settings.worker_id,
-                    "site_name": self.settings.site,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "payload_type": payload_type,
-                    "task_id": task.task_id,
-                    "idempotency_key": task.idempotency_key,
-                    "payload": payload,
-                }
-                await self._submit_or_buffer(envelope)
-                continue
+                if task is not None:
+                    try:
+                        payload_type, payload = await self.runner.run(task)
+                    except Exception as exc:  # noqa: BLE001
+                        payload_type = "execution_result"
+                        payload = {"success": False, "error": str(exc), "error_code": "EXECUTION_ERROR"}
+
+                    envelope = {
+                        "worker_id": self.settings.worker_id,
+                        "site_name": self.settings.site,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "payload_type": payload_type,
+                        "task_id": task.task_id,
+                        "idempotency_key": task.idempotency_key,
+                        "payload": payload,
+                    }
+                    await self._submit_or_buffer(envelope)
+                    continue
+
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "worker_loop_error",
+                    extra={"worker_id": self.settings.worker_id, "error": str(exc)},
+                    exc_info=True,
+                )
 
             await asyncio.sleep(self.settings.poll_interval_seconds)
 
+        await self.client.close()
         logger.info("worker_stopping", extra={"worker_id": self.settings.worker_id})
 
     def _capabilities(self) -> dict:

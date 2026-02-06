@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import logging
+import traceback
+from datetime import datetime, timezone
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -11,6 +14,8 @@ from homelab.storage.models import ActionHistory, ActionTemplate, ActionStatus
 from homelab.adapters.proxmox_adapter import proxmox_adapter
 from homelab.execution_plugins import PluginAction, execution_registry
 from homelab.workers.service import enqueue_worker_task
+
+logger = logging.getLogger(__name__)
 
 
 class PlanExecutor:
@@ -21,8 +26,15 @@ class PlanExecutor:
 
         result = await db.execute(select(ActionHistory).where(ActionHistory.id == action_id))
         action = result.scalar_one_or_none()
-        if not action or action.status != ActionStatus.approved:
-            print(f"[PlanExecutor] Cannot execute {action_id}: invalid status {action.status}")
+        if not action:
+            logger.warning("[PlanExecutor] Cannot execute %s: action not found", action_id)
+            return False
+        if action.status != ActionStatus.approved:
+            logger.warning(
+                "[PlanExecutor] Cannot execute %s: invalid status %s",
+                action_id,
+                action.status,
+            )
             return False
 
         settings = get_settings()
@@ -30,10 +42,10 @@ class PlanExecutor:
             queued = await self._enqueue_worker_execution(db, action)
             return queued
 
-        print(f"[PlanExecutor] Executing {action.action_template} on {action.target_resource}")
+        logger.info("[PlanExecutor] Executing %s on %s", action.action_template, action.target_resource)
 
         action.status = ActionStatus.executing
-        action.executed_at = datetime.utcnow()
+        action.executed_at = datetime.now(timezone.utc)
         await db.commit()
 
         success = False
@@ -44,11 +56,10 @@ class PlanExecutor:
             success, result_data, error = await self._dispatch_action(action)
         except Exception as e:
             error = f"Execution error: {str(e)}"
-            import traceback
             traceback.print_exc()
 
         action.status = ActionStatus.completed if success else ActionStatus.failed
-        action.completed_at = datetime.utcnow()
+        action.completed_at = datetime.now(timezone.utc)
         action.result = result_data or {}
         action.error = error
         await db.commit()
@@ -67,7 +78,7 @@ class PlanExecutor:
 
         settings = get_settings()
         action.status = ActionStatus.executing
-        action.executed_at = datetime.utcnow()
+        action.executed_at = datetime.now(timezone.utc)
 
         payload = {
             "plugin_id": "docker",
@@ -161,6 +172,8 @@ class PlanExecutor:
 
         post_ok, post_msg = await plugin.validate_post(plugin_action, result)
         if not post_ok:
+            # Attempt rollback per ADR contract
+            await plugin.rollback(plugin_action, result)
             return False, result, f"Plugin post-validation failed: {post_msg}"
 
         if not result.get("success"):

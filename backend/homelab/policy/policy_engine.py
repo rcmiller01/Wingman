@@ -118,7 +118,7 @@ class PolicyEngine:
     async def _check_rate_limit(self, db: AsyncSession, target: str, action: ActionTemplate) -> tuple[bool, str | None]:
         """Check if action rate limit is exceeded for target."""
         # Check actions on this target in the last hour
-        one_hour_ago = datetime.utcnow() - timedelta(hours=1)
+        one_hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
         
         query = select(func.count()).select_from(ActionHistory).where(
             ActionHistory.target_resource == target,

@@ -88,6 +88,7 @@ class ScriptPlugin(ExecutionPlugin):
                 error_code="VALIDATION_ERROR",
             ).to_dict()
 
+        proc = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 *cmd,
@@ -115,11 +116,25 @@ class ScriptPlugin(ExecutionPlugin):
                 "truncated": truncated,
             }
         except asyncio.TimeoutError:
+            # Kill the orphaned subprocess to prevent zombies
+            if proc is not None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except ProcessLookupError:
+                    pass
             success = False
             error = f"Script timed out after {timeout} seconds"
             error_code = "EXECUTION_ERROR"
             data = {"exit_code": None, "stdout": "", "stderr": "", "truncated": False}
         except Exception as exc:
+            # Clean up subprocess on unexpected errors
+            if proc is not None and proc.returncode is None:
+                try:
+                    proc.kill()
+                    await proc.wait()
+                except ProcessLookupError:
+                    pass
             success = False
             error = str(exc)
             error_code = "EXECUTION_ERROR"

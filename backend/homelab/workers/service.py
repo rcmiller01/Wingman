@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+import logging
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select, text, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,8 +21,14 @@ from homelab.storage.models import (
 )
 from homelab.workers.schemas import WorkerResultEnvelope, WorkerTaskEnvelope
 
+logger = logging.getLogger(__name__)
 
 NOTIFY_CHANNEL = "worker_task"
+
+
+def _utcnow() -> datetime:
+    """Return timezone-aware UTC now (avoids deprecated datetime.utcnow)."""
+    return datetime.now(timezone.utc)
 
 
 async def enqueue_worker_task(
@@ -55,7 +62,7 @@ async def enqueue_worker_task(
 
 
 async def claim_next_task(db: AsyncSession, *, worker_id: str) -> WorkerTaskEnvelope | None:
-    now = datetime.utcnow()
+    now = _utcnow()
     query = (
         select(WorkerTask)
         .where(
@@ -94,7 +101,7 @@ async def mark_task_running(db: AsyncSession, task_id: str) -> None:
     if not task:
         return
     task.status = WorkerTaskStatus.running
-    task.started_at = datetime.utcnow()
+    task.started_at = _utcnow()
     await db.flush()
 
 
@@ -120,18 +127,24 @@ async def submit_worker_result(db: AsyncSession, result: WorkerResultEnvelope) -
     db.add(row)
 
     task = await db.get(WorkerTask, result.task_id)
-    success = bool(result.payload.get("success", True))
+    # Default to False when success key is missing — fail-safe per ADR
+    success = bool(result.payload.get("success", False))
+    now = _utcnow()
     if task:
-        task.status = WorkerTaskStatus.done if success else WorkerTaskStatus.failed
-        task.completed_at = datetime.utcnow()
-        task.error = None if success else str(result.payload.get("error") or "worker execution failed")
+        if not success and task.attempts < task.max_attempts:
+            # Requeue for retry with backoff
+            await requeue_task_with_backoff(db, task.id, reason=str(result.payload.get("error") or "worker execution failed"))
+        else:
+            task.status = WorkerTaskStatus.done if success else WorkerTaskStatus.failed
+            task.completed_at = now
+            task.error = None if success else str(result.payload.get("error") or "worker execution failed")
 
         action_id = task.payload.get("action_id")
         if action_id:
             action = await db.get(ActionHistory, action_id)
             if action:
                 action.status = ActionStatus.completed if success else ActionStatus.failed
-                action.completed_at = datetime.utcnow()
+                action.completed_at = now
                 action.result = result.payload
                 action.error = None if success else str(result.payload.get("error") or "worker execution failed")
 
@@ -140,8 +153,8 @@ async def submit_worker_result(db: AsyncSession, result: WorkerResultEnvelope) -
             todo = await db.get(TodoStep, todo_id)
             if todo:
                 todo.status = ActionStatus.completed if success else ActionStatus.failed
-                todo.executed_at = todo.executed_at or datetime.utcnow()
-                todo.completed_at = datetime.utcnow()
+                todo.executed_at = todo.executed_at or now
+                todo.completed_at = now
                 todo.result = result.payload
                 todo.error = None if success else str(result.payload.get("error") or "worker execution failed")
 
@@ -157,10 +170,34 @@ async def requeue_task_with_backoff(db: AsyncSession, task_id: str, reason: str)
     task.error = reason
     if task.attempts >= task.max_attempts:
         task.status = WorkerTaskStatus.dead_letter
+        logger.warning(
+            "task_dead_lettered",
+            extra={
+                "task_id": task_id,
+                "worker_id": task.worker_id,
+                "task_type": task.task_type,
+                "attempts": task.attempts,
+                "reason": reason,
+            },
+        )
+        # Emit alert event for monitoring/alerting systems per ADR requirement
+        logger.error(
+            "task_dead_letter_alert",
+            extra={
+                "alert_type": "dead_letter",
+                "severity": "high",
+                "task_id": task_id,
+                "worker_id": task.worker_id,
+                "task_type": task.task_type,
+                "attempts": task.attempts,
+                "max_attempts": task.max_attempts,
+                "reason": reason,
+            },
+        )
     else:
         task.status = WorkerTaskStatus.queued
         backoff_seconds = 2 ** max(task.attempts, 1)
-        task.next_retry_at = datetime.utcnow() + timedelta(seconds=backoff_seconds)
+        task.next_retry_at = _utcnow() + timedelta(seconds=backoff_seconds)
     await db.flush()
     return task
 
@@ -173,7 +210,7 @@ async def register_worker(
     capabilities: dict,
 ) -> WorkerNode:
     worker = await db.get(WorkerNode, worker_id)
-    now = datetime.utcnow()
+    now = _utcnow()
     if worker is None:
         worker = WorkerNode(
             worker_id=worker_id,
@@ -198,7 +235,7 @@ async def register_worker(
 
 async def list_worker_health(db: AsyncSession) -> dict:
     rows = (await db.execute(select(WorkerNode))).scalars().all()
-    now = datetime.utcnow()
+    now = _utcnow()
     workers = []
     for row in rows:
         freshness_seconds = (now - row.last_seen).total_seconds()
@@ -223,11 +260,28 @@ async def list_worker_health(db: AsyncSession) -> dict:
 
 
 async def get_worker_metrics(db: AsyncSession) -> dict:
-    now = datetime.utcnow()
-    queued = (await db.execute(select(func.count()).select_from(WorkerTask).where(WorkerTask.status == WorkerTaskStatus.queued))).scalar_one()
-    failed = (await db.execute(select(func.count()).select_from(WorkerTask).where(WorkerTask.status.in_([WorkerTaskStatus.failed, WorkerTaskStatus.dead_letter])))).scalar_one()
+    now = _utcnow()
+    queued = (
+        await db.execute(
+            select(func.count()).select_from(WorkerTask).where(WorkerTask.status == WorkerTaskStatus.queued)
+        )
+    ).scalar_one()
+    failed = (
+        await db.execute(
+            select(func.count()).select_from(WorkerTask).where(
+                WorkerTask.status.in_([WorkerTaskStatus.failed, WorkerTaskStatus.dead_letter])
+            )
+        )
+    ).scalar_one()
 
-    lat_rows = (await db.execute(select(WorkerTask).where(WorkerTask.completed_at.is_not(None), WorkerTask.started_at.is_not(None)).limit(200))).scalars().all()
+    lat_rows = (
+        await db.execute(
+            select(WorkerTask)
+            .where(WorkerTask.completed_at.is_not(None), WorkerTask.started_at.is_not(None))
+            .order_by(WorkerTask.completed_at.desc())
+            .limit(200)
+        )
+    ).scalars().all()
     if lat_rows:
         avg_latency = sum((r.completed_at - r.started_at).total_seconds() for r in lat_rows) / len(lat_rows)
     else:

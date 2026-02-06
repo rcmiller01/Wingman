@@ -17,7 +17,7 @@ async def verify_guide_mode():
             status=IncidentStatus.open,
             affected_resources=["docker://test-container-1"],
             symptoms=["Container test-container-1 has high restart count: 5"],
-            detected_at=datetime.utcnow()
+            detected_at=datetime.now(timezone.utc)
         )
         db.add(incident)
         await db.commit()
