@@ -15,6 +15,119 @@
 
 ---
 
+
+## MLC Consolidation Addendum (2026-02)
+
+This addendum aligns the existing v2 roadmap to the **Minimum Lovable Copilot (MLC)** bar for homelab/SMB ops: trusted unified awareness, situation framing, baseline memory, safe action, and a single human narrative.
+
+### Current MLC Scorecard (Consolidated)
+
+| Capability | Status | Consolidated Gap |
+|---|---|---|
+| MLC-1 Unified awareness | 🟡 Partial | Missing explicit dependency graph and relationship-first topology model |
+| MLC-2 Problem framing | 🟡 Partial | Missing first-class incident object and canonical cause narrative |
+| MLC-3 Memory & baseline | 🔴 Gap | Missing baseline memory, recurrence detection, and fix outcome memory |
+| MLC-4 Safe, scoped action | 🟢 Strong | Continue hardening approvals, blast radius policy, and auditability |
+| MLC-5 Human interface | 🟡 Partial | Missing one authoritative status narrative with confidence language |
+
+### Minimum Change Set to Cross the Lovability Threshold
+
+#### Primitive A — Incident as a first-class object
+
+Add/standardize an `Incident` domain object as the central control-plane artifact:
+
+- `incident_id`, `opened_at`, `closed_at`, `severity`, `status`
+- `symptoms[]` (signals grouped by time/entity)
+- `suspected_causes[]` with ranked confidence
+- `affected_entities[]` (host, vm, container, service, port, storage, gpu)
+- `evidence_refs[]` (fact IDs, log signatures, metric windows)
+- `proposed_actions[]` (policy-scoped TodoSteps)
+- `outcome` + `verification_results[]` + `rollback_used`
+- `seen_before` + `similar_incident_ids[]`
+
+**Exit criteria:** every actionable system issue can be rendered as one incident sentence + confidence + next action.
+
+Implementation plan: see `docs/primitive-a-incident-object-implementation-plan.md`.
+
+#### Primitive B — Baseline memory (start simple)
+
+Implement a minimal baseline engine first (no advanced ML required):
+
+- Rolling windows for key metrics (CPU, memory, IO wait, restart rate, latency)
+- Last-known-good snapshots per service dependency chain
+- Recurrence flags (`seen_before`) against past incidents
+- Fix outcome memory (action → verified success/failure)
+- Drift tags: `new`, `recurring`, `worsening`, `improving`
+
+**Exit criteria:** Wingman can reliably say “this is unusual” and “this happened before.”
+
+Implementation plan: see `docs/primitive-b-baseline-memory-implementation-plan.md`.
+
+#### Primitive C — Canonical daily status narrative
+
+Define one authoritative narrative output available in API/UI/chat:
+
+- `overall_status`: healthy | watch | action_needed
+- `headline`: one sentence summary
+- `active_issues[]`: issue, impact, confidence, suggested action
+- `autonomous_actions_taken[]` + verification
+- `pending_approvals[]`
+- `change_since_yesterday`
+
+**Exit criteria:** users can ask “what’s wrong right now?” and receive a stable, trustworthy answer without dashboard archaeology.
+
+Implementation plan: see `docs/primitive-c-status-narrative-implementation-plan.md`.
+
+### Consolidated Delivery Plan (Overlay on existing v2 phases)
+
+### Implementation Document Set (Ordered Sequence)
+
+1. `docs/primitive-a-incident-object-implementation-plan.md`
+2. `docs/primitive-b-baseline-memory-implementation-plan.md`
+3. `docs/primitive-c-status-narrative-implementation-plan.md`
+4. `docs/mlc1-relationship-graph-implementation-plan.md`
+
+This sequence is intentional: contract-first incident canonicalization enables reliable memory, memory enables trustworthy narratives, and all three improve relationship-graph reasoning quality.
+
+#### Phase 1A (Immediate, 1-2 weeks): Incident Canonicalization
+- Introduce/upgrade shared `Incident` schema across detector, API, and UI payloads
+- Enforce cause hypothesis + confidence in correlator output
+- Add incident summary sentence generator (`problem`, `cause`, `impact`)
+
+#### Phase 1B (2-3 weeks): Baseline & Recurrence
+- Add baseline store tables for rolling stats and last-known-good snapshots
+- Add recurrence matching from current incident to prior signatures
+- Persist action outcome memory and expose it in incident context
+
+#### Phase 1C (1-2 weeks): Narrative Anchor
+- Add daily/current status narrative service and API endpoint
+- Surface consistent narrative block in dashboard + chat
+- Include confidence language and unresolved-risk statements
+
+#### Phase 2 (follow-on): Relationship Graph for MLC-1
+- Build dependency graph model (`host -> vm -> container -> service -> resource`)
+- Attach incidents to graph nodes + edges for blast radius reasoning
+- Feed topology-aware context into planner and narrative generator
+
+Implementation plan: see `docs/mlc1-relationship-graph-implementation-plan.md`.
+
+### Mapping to Existing v2 Themes
+
+- **Distributed workers** become stronger once incidents and baselines are normalized centrally.
+- **Execution plugins** remain the safe-action differentiator and should consume incident context + confidence for pre-checks.
+- **Generative UI** should render from canonical incidents + status narrative, not ad-hoc metric slices.
+
+### Definition of Done for “Minimum Lovable Copilot”
+
+Wingman is considered MLC-ready when all are true:
+
+1. Every major issue is represented by a first-class incident with confidence-ranked causes.
+2. Baseline memory can identify unusual vs recurring behavior and cite prior outcomes.
+3. A single narrative endpoint summarizes system state, actions taken, and approvals needed.
+4. Safe autonomous actions remain fully policy-scoped and auditable (no regression from v1/v2 safety posture).
+
+---
+
 ## v2.0 Features
 
 ### 1. Plugin Marketplace / Third-Party Skills
