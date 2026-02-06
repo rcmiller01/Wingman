@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from fastapi import HTTPException
 
-from homelab.auth.rbac import Role, Permission, ROLE_PERMISSIONS
+from homelab.auth.models import Role, Permission, ROLE_PERMISSIONS, role_has_permission, get_permissions_for_role
 
 
 class TestRolePermissions:
@@ -14,7 +14,7 @@ class TestRolePermissions:
     
     def test_admin_has_all_permissions(self):
         """Admin role should have all permissions."""
-        admin_perms = ROLE_PERMISSIONS[Role.ADMIN]
+        admin_perms = get_permissions_for_role(Role.ADMIN)
         
         # Admin should have all defined permissions
         for perm in Permission:
@@ -22,29 +22,29 @@ class TestRolePermissions:
     
     def test_operator_has_operational_permissions(self):
         """Operator role should have execution permissions."""
-        operator_perms = ROLE_PERMISSIONS[Role.OPERATOR]
+        operator_perms = get_permissions_for_role(Role.OPERATOR)
         
-        assert Permission.EXECUTE_ACTIONS in operator_perms
-        assert Permission.VIEW_FACTS in operator_perms
-        assert Permission.VIEW_INCIDENTS in operator_perms
+        assert Permission.CREATE_EXECUTION in operator_perms
+        assert Permission.EXECUTE_TIER1 in operator_perms
+        assert Permission.READ_EXECUTIONS in operator_perms
     
     def test_operator_cannot_manage_users(self):
         """Operator role should not manage users."""
-        operator_perms = ROLE_PERMISSIONS[Role.OPERATOR]
+        operator_perms = get_permissions_for_role(Role.OPERATOR)
         
         assert Permission.MANAGE_USERS not in operator_perms
     
     def test_viewer_read_only(self):
         """Viewer role should only have read permissions."""
-        viewer_perms = ROLE_PERMISSIONS[Role.VIEWER]
+        viewer_perms = get_permissions_for_role(Role.VIEWER)
         
-        # Should have view permissions
-        assert Permission.VIEW_FACTS in viewer_perms
-        assert Permission.VIEW_INCIDENTS in viewer_perms
+        # Should have read permissions
+        assert Permission.READ_EXECUTIONS in viewer_perms
+        assert Permission.READ_SKILLS in viewer_perms
         
         # Should NOT have execute permissions
-        assert Permission.EXECUTE_ACTIONS not in viewer_perms
-        assert Permission.MANAGE_WORKERS not in viewer_perms
+        assert Permission.CREATE_EXECUTION not in viewer_perms
+        assert Permission.EXECUTE_TIER1 not in viewer_perms
 
 
 class TestHasPermission:
@@ -52,22 +52,20 @@ class TestHasPermission:
     
     def test_admin_has_any_permission(self):
         """Admin should pass any permission check."""
-        from homelab.auth.rbac import has_permission
-        
         for perm in Permission:
-            assert has_permission(Role.ADMIN, perm)
+            assert role_has_permission(Role.ADMIN, perm)
     
     def test_viewer_denied_execute(self):
         """Viewer should be denied execute permission."""
-        from homelab.auth.rbac import has_permission
-        
-        assert not has_permission(Role.VIEWER, Permission.EXECUTE_ACTIONS)
+        assert not role_has_permission(Role.VIEWER, Permission.EXECUTE_TIER1)
     
-    def test_operator_can_execute(self):
-        """Operator should be allowed to execute actions."""
-        from homelab.auth.rbac import has_permission
-        
-        assert has_permission(Role.OPERATOR, Permission.EXECUTE_ACTIONS)
+    def test_operator_can_execute_tier1(self):
+        """Operator should be allowed to execute tier 1 actions."""
+        assert role_has_permission(Role.OPERATOR, Permission.EXECUTE_TIER1)
+    
+    def test_operator_cannot_execute_tier2(self):
+        """Operator should NOT be allowed to execute tier 2 actions."""
+        assert not role_has_permission(Role.OPERATOR, Permission.EXECUTE_TIER2)
 
 
 class TestRequirePermissionDecorator:
@@ -83,7 +81,7 @@ class TestRequirePermissionDecorator:
         mock_user.role = Role.ADMIN
         
         # Create the dependency
-        checker = require_permission(Permission.VIEW_FACTS)
+        checker = require_permission(Permission.READ_EXECUTIONS)
         
         # Should not raise
         result = await checker(mock_user)
@@ -99,47 +97,13 @@ class TestRequirePermissionDecorator:
         mock_user.role = Role.VIEWER
         
         # Create the dependency for execute permission
-        checker = require_permission(Permission.EXECUTE_ACTIONS)
+        checker = require_permission(Permission.EXECUTE_TIER1)
         
         # Should raise 403
         with pytest.raises(HTTPException) as exc_info:
             await checker(mock_user)
         
         assert exc_info.value.status_code == 403
-
-
-class TestGetCurrentUser:
-    """Test get_current_user dependency."""
-    
-    @pytest.mark.asyncio
-    async def test_valid_token_returns_user(self):
-        """Test valid token returns user object."""
-        # This would need database fixtures
-        pass
-    
-    @pytest.mark.asyncio
-    async def test_invalid_token_raises_401(self):
-        """Test invalid token raises 401."""
-        from homelab.auth.dependencies import get_current_user
-        
-        # Mock request with invalid token
-        mock_request = MagicMock()
-        mock_request.headers = {"Authorization": "Bearer invalid-token"}
-        
-        # Would need database session mock
-        pass
-    
-    @pytest.mark.asyncio
-    async def test_missing_token_raises_401(self):
-        """Test missing token raises 401."""
-        from homelab.auth.dependencies import get_current_user
-        
-        # Mock request without Authorization header
-        mock_request = MagicMock()
-        mock_request.headers = {}
-        
-        # Would need database session mock
-        pass
 
 
 class TestServiceAccountAuth:
@@ -153,15 +117,3 @@ class TestServiceAccountAuth:
         
         assert valid_key.startswith("wingman_sa_")
         assert not invalid_key.startswith("wingman_sa_")
-    
-    @pytest.mark.asyncio
-    async def test_valid_api_key_authenticates(self):
-        """Test valid API key returns service account."""
-        # Would need database fixtures
-        pass
-    
-    @pytest.mark.asyncio
-    async def test_invalid_api_key_rejected(self):
-        """Test invalid API key is rejected."""
-        # Would need database fixtures
-        pass
