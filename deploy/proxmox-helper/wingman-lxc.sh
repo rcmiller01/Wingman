@@ -12,6 +12,9 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 KNOWLEDGE_TAR="$(mktemp /tmp/wingman-knowledge.tar.gz.XXXXXX)"
 trap 'rm -f "${KNOWLEDGE_TAR}"' EXIT
 
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+export NONINTERACTIVE
+
 get_default_storage() {
   pvesm status -content rootdir | awk 'NR==2 {print $1}'
 }
@@ -19,6 +22,10 @@ get_default_storage() {
 prompt() {
   local text="$1"
   local default="$2"
+  if [[ "${NONINTERACTIVE}" == "1" ]]; then
+    echo "${default}"
+    return
+  fi
   local value
   if [[ -n "${default}" ]]; then
     read -r -p "${text} [${default}]: " value
@@ -32,6 +39,13 @@ prompt() {
 prompt_yes_no() {
   local text="$1"
   local default="$2"
+  if [[ "${NONINTERACTIVE}" == "1" ]]; then
+    case "${default}" in
+      y|Y|yes|YES) echo "yes" ;;
+      *) echo "no" ;;
+    esac
+    return
+  fi
   local reply
   read -r -p "${text} [${default}]: " reply
   reply="${reply:-${default}}"
@@ -41,7 +55,7 @@ prompt_yes_no() {
   esac
 }
 
-CTID_INPUT="$(prompt "Container ID (blank = next available)" "")"
+CTID_INPUT="${LXC_CTID:-$(prompt "Container ID (blank = next available)" "")}"
 if [[ -z "${CTID_INPUT}" ]]; then
   CTID="$(pvesh get /cluster/nextid)"
 else
@@ -135,7 +149,19 @@ else
   echo "Warning: knowledge directory not found; skipping knowledge copy."
 fi
 
-pct exec "${CTID}" -- bash /root/install_inside.sh
+# Forward env vars for non-interactive mode
+INNER_ENV=""
+for var in NONINTERACTIVE WINGMAN_EXECUTION_MODE WINGMAN_ALLOW_CLOUD_LLM \
+           WINGMAN_PROXMOX_URL WINGMAN_PROXMOX_VERIFY_SSL WINGMAN_DOCKER_HOST \
+           WINGMAN_TIMEZONE WINGMAN_BASE_URL WINGMAN_AUTH_SECRET \
+           WINGMAN_AUTH_METHOD WINGMAN_PROXMOX_USER WINGMAN_PROXMOX_TOKEN_NAME \
+           WINGMAN_PROXMOX_TOKEN WINGMAN_PROXMOX_PASSWORD; do
+  if [[ -n "${!var:-}" ]]; then
+    INNER_ENV+="${var}=${!var} "
+  fi
+done
+
+pct exec "${CTID}" -- bash -c "${INNER_ENV} bash /root/install_inside.sh"
 
 CONTAINER_IP="$(pct exec "${CTID}" -- bash -c "ip -4 -o addr show dev eth0 | awk '{print \$4}' | cut -d/ -f1")"
 
