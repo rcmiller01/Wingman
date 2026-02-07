@@ -125,7 +125,9 @@ if [[ -n "${VLAN_TAG}" ]]; then
   NET0+=",tag=${VLAN_TAG}"
 fi
 
-ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE}"
+# Strip unit suffix — pct expects just the number (e.g. local-lvm:20)
+DISK_SIZE_NUM="${DISK_SIZE//[^0-9]/}"
+ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE_NUM}"
 
 pct create "${CTID}" "${TEMPLATE_VOLID}" \
   --hostname "${HOSTNAME}" \
