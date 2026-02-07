@@ -125,7 +125,9 @@ if [[ -n "${VLAN_TAG}" ]]; then
   NET0+=",tag=${VLAN_TAG}"
 fi
 
-ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE}"
+# Strip unit suffix — pct expects just the number (e.g. local-lvm:20)
+DISK_SIZE_NUM="${DISK_SIZE//[^0-9]/}"
+ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE_NUM}"
 
 pct create "${CTID}" "${TEMPLATE_VOLID}" \
   --hostname "${HOSTNAME}" \
@@ -155,6 +157,17 @@ pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/update.sh" /root/update.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/backup.sh" /root/backup.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/restore.sh" /root/restore.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/smoke.sh" /root/smoke.sh
+
+# Push source code for building images inside the LXC
+echo "Pushing source code into container..."
+SOURCE_TAR="$(mktemp /tmp/wingman-source.tar.gz.XXXXXX)"
+tar -C "${REPO_ROOT}" -czf "${SOURCE_TAR}" \
+  --exclude='__pycache__' --exclude='node_modules' --exclude='.next' \
+  --exclude='.git' --exclude='*.pyc' \
+  backend frontend
+pct push "${CTID}" "${SOURCE_TAR}" /root/source.tgz
+pct exec "${CTID}" -- bash -c "mkdir -p /opt/wingman && tar -xzf /root/source.tgz -C /opt/wingman"
+rm -f "${SOURCE_TAR}"
 
 if [[ -d "${REPO_ROOT}/knowledge" ]]; then
   tar -C "${REPO_ROOT}" -czf "${KNOWLEDGE_TAR}" knowledge
