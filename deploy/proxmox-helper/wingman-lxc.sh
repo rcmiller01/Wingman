@@ -15,8 +15,12 @@ trap 'rm -f "${KNOWLEDGE_TAR}"' EXIT
 NONINTERACTIVE="${NONINTERACTIVE:-0}"
 export NONINTERACTIVE
 
-get_default_storage() {
-  pvesm status -content rootdir | awk 'NR==2 {print $1}'
+get_default_rootfs_storage() {
+  pvesm status -content rootdir | awk 'NR>1 {print $1}' | head -n 1
+}
+
+get_default_template_storage() {
+  pvesm status -content vztmpl | awk 'NR>1 {print $1}' | head -n 1
 }
 
 prompt() {
@@ -67,8 +71,11 @@ HOSTNAME="$(prompt "Hostname" "wingman")"
 TEMPLATE_DEFAULT="debian-12-standard"
 OS_CHOICE="$(prompt "OS template (debian-12-standard, ubuntu-22.04-standard, ubuntu-24.04-standard)" "${TEMPLATE_DEFAULT}")"
 
-STORAGE_DEFAULT="$(get_default_storage)"
-STORAGE="$(prompt "Storage" "${STORAGE_DEFAULT}")"
+ROOTFS_STORAGE_DEFAULT="$(get_default_rootfs_storage)"
+ROOTFS_STORAGE="$(prompt "Rootfs storage" "${ROOTFS_STORAGE_DEFAULT}")"
+
+TMPL_STORAGE_DEFAULT="$(get_default_template_storage)"
+TMPL_STORAGE="$(prompt "Template storage" "${TMPL_STORAGE_DEFAULT}")"
 
 DISK_SIZE="$(prompt "Disk size" "20G")"
 RAM="$(prompt "RAM (MiB)" "4096")"
@@ -92,12 +99,12 @@ if [[ "${ENABLE_FUSE}" == "yes" ]]; then
   FEATURES+=";fuse=1"
 fi
 
-TEMPLATE_PATH="$(pveam list ${STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
+TEMPLATE_PATH="$(pveam list ${TMPL_STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
 if [[ -z "${TEMPLATE_PATH}" ]]; then
   echo "Template ${OS_CHOICE} not found locally. Downloading..."
   pveam update
-  pveam download "${STORAGE}" "${OS_CHOICE}"
-  TEMPLATE_PATH="$(pveam list ${STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
+  pveam download "${TMPL_STORAGE}" "${OS_CHOICE}"
+  TEMPLATE_PATH="$(pveam list ${TMPL_STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
 fi
 
 if [[ -z "${TEMPLATE_PATH}" ]]; then
@@ -110,9 +117,9 @@ if [[ -n "${VLAN_TAG}" ]]; then
   NET0+=",tag=${VLAN_TAG}"
 fi
 
-ROOTFS="${STORAGE}:${DISK_SIZE}"
+ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE}"
 
-pct create "${CTID}" "${STORAGE}:vztmpl/${TEMPLATE_PATH}" \
+pct create "${CTID}" "${TMPL_STORAGE}:vztmpl/${TEMPLATE_PATH}" \
   --hostname "${HOSTNAME}" \
   --cores "${CORES}" \
   --memory "${RAM}" \
