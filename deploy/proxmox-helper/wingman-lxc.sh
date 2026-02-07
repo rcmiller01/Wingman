@@ -158,6 +158,17 @@ pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/backup.sh" /root/backup.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/restore.sh" /root/restore.sh
 pct push "${CTID}" "${REPO_ROOT}/deploy/proxmox-lxc/smoke.sh" /root/smoke.sh
 
+# Push source code for building images inside the LXC
+echo "Pushing source code into container..."
+SOURCE_TAR="$(mktemp /tmp/wingman-source.tar.gz.XXXXXX)"
+tar -C "${REPO_ROOT}" -czf "${SOURCE_TAR}" \
+  --exclude='__pycache__' --exclude='node_modules' --exclude='.next' \
+  --exclude='.git' --exclude='*.pyc' \
+  backend frontend
+pct push "${CTID}" "${SOURCE_TAR}" /root/source.tgz
+pct exec "${CTID}" -- bash -c "mkdir -p /opt/wingman && tar -xzf /root/source.tgz -C /opt/wingman"
+rm -f "${SOURCE_TAR}"
+
 if [[ -d "${REPO_ROOT}/knowledge" ]]; then
   tar -C "${REPO_ROOT}" -czf "${KNOWLEDGE_TAR}" knowledge
   pct push "${CTID}" "${KNOWLEDGE_TAR}" /root/knowledge.tgz

@@ -1,6 +1,9 @@
 services:
   backend:
-    image: ${WINGMAN_BACKEND_IMAGE:-ghcr.io/wingmanhq/wingman-backend:latest}
+    image: ${WINGMAN_BACKEND_IMAGE:-wingman-backend:local}
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     command: ["sh", "-c", "alembic upgrade head && uvicorn homelab.main:app --host 0.0.0.0 --port 8000"]
     environment:
       DATABASE_URL: postgresql+asyncpg://copilot:${POSTGRES_PASSWORD:-changeme}@postgres:5432/homelab_copilot
@@ -52,7 +55,10 @@ services:
       - wingman-net
 
   frontend:
-    image: ${WINGMAN_FRONTEND_IMAGE:-ghcr.io/wingmanhq/wingman-frontend:latest}
+    image: ${WINGMAN_FRONTEND_IMAGE:-wingman-frontend:local}
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
     environment:
       NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
       INTERNAL_API_URL: http://backend:8000

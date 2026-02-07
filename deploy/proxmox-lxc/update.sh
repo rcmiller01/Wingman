@@ -6,10 +6,10 @@ COMPOSE_FILE="${COMPOSE_DIR}/docker-compose.yml"
 
 cd "${COMPOSE_DIR}"
 
-echo "==> Pulling latest images"
-docker compose -f "${COMPOSE_FILE}" pull
+echo "==> Pulling base images"
+docker compose -f "${COMPOSE_FILE}" pull postgres qdrant
 
-echo "==> Applying migrations and restarting"
-docker compose -f "${COMPOSE_FILE}" up -d
+echo "==> Rebuilding and restarting"
+docker compose -f "${COMPOSE_FILE}" up -d --build
 
 echo "==> Update complete"
