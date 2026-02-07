@@ -99,16 +99,24 @@ if [[ "${ENABLE_FUSE}" == "yes" ]]; then
   FEATURES+=";fuse=1"
 fi
 
-TEMPLATE_PATH="$(pveam list ${TMPL_STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
-if [[ -z "${TEMPLATE_PATH}" ]]; then
+# Check if template is already downloaded (pveam list output: storage:volid)
+TEMPLATE_VOLID="$(pveam list "${TMPL_STORAGE}" 2>/dev/null | awk -v p="${OS_CHOICE}" '$0 ~ p {print $1}' | tail -n 1)"
+
+if [[ -z "${TEMPLATE_VOLID}" ]]; then
   echo "Template ${OS_CHOICE} not found locally. Downloading..."
   pveam update
-  pveam download "${TMPL_STORAGE}" "${OS_CHOICE}"
-  TEMPLATE_PATH="$(pveam list ${TMPL_STORAGE} | awk -v pattern="${OS_CHOICE}" '$2 ~ pattern {print $2}' | tail -n 1)"
+  # Resolve the full template filename from the available list
+  TMPL_FILENAME="$(pveam available --section system | awk -v p="${OS_CHOICE}" '$2 ~ p {print $2}' | tail -n 1)"
+  if [[ -z "${TMPL_FILENAME}" ]]; then
+    echo "Unable to find template matching ${OS_CHOICE} in available templates."
+    exit 1
+  fi
+  pveam download "${TMPL_STORAGE}" "${TMPL_FILENAME}"
+  TEMPLATE_VOLID="$(pveam list "${TMPL_STORAGE}" 2>/dev/null | awk -v p="${OS_CHOICE}" '$0 ~ p {print $1}' | tail -n 1)"
 fi
 
-if [[ -z "${TEMPLATE_PATH}" ]]; then
-  echo "Unable to locate template for ${OS_CHOICE}."
+if [[ -z "${TEMPLATE_VOLID}" ]]; then
+  echo "Unable to locate template for ${OS_CHOICE} after download."
   exit 1
 fi
 
@@ -119,7 +127,7 @@ fi
 
 ROOTFS="${ROOTFS_STORAGE}:${DISK_SIZE}"
 
-pct create "${CTID}" "${TMPL_STORAGE}:vztmpl/${TEMPLATE_PATH}" \
+pct create "${CTID}" "${TEMPLATE_VOLID}" \
   --hostname "${HOSTNAME}" \
   --cores "${CORES}" \
   --memory "${RAM}" \
