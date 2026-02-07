@@ -107,6 +107,7 @@ EXECUTION_MODE="$(prompt "Execution mode (integration or lab)" "integration")"
 ALLOW_CLOUD_LLM="$(prompt "Allow cloud LLM?" "false")"
 PROXMOX_URL="$(prompt "Proxmox API URL (https://pve:8006)" "")"
 PROXMOX_VERIFY_SSL="$(prompt "Verify Proxmox SSL?" "false")"
+DOCKER_HOST_ADDR="$(prompt "Remote Docker host (e.g. tcp://vm-ip:2375, blank for local socket)" "")"
 TIMEZONE="$(prompt "Timezone (optional)" "")"
 BASE_URL="$(prompt "Base URL (optional)" "")"
 LAB_ENABLE="no"
@@ -197,6 +198,9 @@ WINGMAN_ALLOW_DANGEROUS_OPS=${ALLOW_DANGEROUS_OPS}
 WINGMAN_READ_ONLY=${READ_ONLY}
 ENV
 
+if [[ -n "${DOCKER_HOST_ADDR}" ]]; then
+  echo "DOCKER_HOST=${DOCKER_HOST_ADDR}" >> /opt/wingman/deploy/.env
+fi
 if [[ -n "${TIMEZONE}" ]]; then
   echo "TZ=${TIMEZONE}" >> /opt/wingman/deploy/.env
 fi
