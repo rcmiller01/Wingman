@@ -6,9 +6,15 @@ if [[ $(id -u) -ne 0 ]]; then
   exit 1
 fi
 
+NONINTERACTIVE="${NONINTERACTIVE:-0}"
+
 prompt() {
   local text="$1"
   local default="$2"
+  if [[ "${NONINTERACTIVE}" == "1" ]]; then
+    echo "${default}"
+    return
+  fi
   local value
   if [[ -n "${default}" ]]; then
     read -r -p "${text} [${default}]: " value
@@ -22,6 +28,13 @@ prompt() {
 prompt_yes_no() {
   local text="$1"
   local default="$2"
+  if [[ "${NONINTERACTIVE}" == "1" ]]; then
+    case "${default}" in
+      y|Y|yes|YES) echo "yes" ;;
+      *) echo "no" ;;
+    esac
+    return
+  fi
   local reply
   read -r -p "${text} [${default}]: " reply
   reply="${reply:-${default}}"
@@ -103,12 +116,13 @@ IP_ADDR="$(ip -4 route get 1.1.1.1 | awk '{print $7; exit}')"
 PUBLIC_API_URL_DEFAULT="http://${IP_ADDR}:8000"
 PUBLIC_UI_URL_DEFAULT="http://${IP_ADDR}:3000"
 
-EXECUTION_MODE="$(prompt "Execution mode (integration or lab)" "integration")"
-ALLOW_CLOUD_LLM="$(prompt "Allow cloud LLM?" "false")"
-PROXMOX_URL="$(prompt "Proxmox API URL (https://pve:8006)" "")"
-PROXMOX_VERIFY_SSL="$(prompt "Verify Proxmox SSL?" "false")"
-TIMEZONE="$(prompt "Timezone (optional)" "")"
-BASE_URL="$(prompt "Base URL (optional)" "")"
+EXECUTION_MODE="${WINGMAN_EXECUTION_MODE:-$(prompt "Execution mode (integration or lab)" "integration")}"
+ALLOW_CLOUD_LLM="${WINGMAN_ALLOW_CLOUD_LLM:-$(prompt "Allow cloud LLM?" "false")}"
+PROXMOX_URL="${WINGMAN_PROXMOX_URL:-$(prompt "Proxmox API URL (https://pve:8006)" "")}"
+PROXMOX_VERIFY_SSL="${WINGMAN_PROXMOX_VERIFY_SSL:-$(prompt "Verify Proxmox SSL?" "false")}"
+DOCKER_HOST_ADDR="${WINGMAN_DOCKER_HOST:-$(prompt "Remote Docker host (e.g. tcp://vm-ip:2375, blank for local socket)" "")}"
+TIMEZONE="${WINGMAN_TIMEZONE:-$(prompt "Timezone (optional)" "")}"
+BASE_URL="${WINGMAN_BASE_URL:-$(prompt "Base URL (optional)" "")}"
 LAB_ENABLE="no"
 LAB_ALLOWLIST_CONTAINERS=""
 LAB_ALLOWLIST_VMS=""
@@ -148,32 +162,39 @@ for secret_file in "${SECRET_FILES[@]}"; do
   chmod 600 "${SECRETS_DIR}/${secret_file}"
 done
 
-read -r -s -p "Wingman auth secret (required, will not echo): " WINGMAN_AUTH_SECRET_INPUT
-printf "\n"
+WINGMAN_AUTH_SECRET_INPUT="${WINGMAN_AUTH_SECRET:-}"
+if [[ "${NONINTERACTIVE}" != "1" ]]; then
+  read -r -s -p "Wingman auth secret (required, will not echo): " WINGMAN_AUTH_SECRET_INPUT
+  printf "\n"
+fi
 if [[ -z "${WINGMAN_AUTH_SECRET_INPUT}" ]]; then
   echo "Auth secret is required. Generating one."
   WINGMAN_AUTH_SECRET_INPUT="$(openssl rand -hex 32)"
 fi
 
-AUTH_METHOD="$(prompt "Proxmox auth method (token or password)" "token")"
-PROXMOX_USER=""
-PROXMOX_TOKEN_NAME=""
-PROXMOX_PASSWORD=""
-PROXMOX_TOKEN=""
+AUTH_METHOD="${WINGMAN_AUTH_METHOD:-$(prompt "Proxmox auth method (token or password)" "token")}"
+PROXMOX_USER="${WINGMAN_PROXMOX_USER:-}"
+PROXMOX_TOKEN_NAME="${WINGMAN_PROXMOX_TOKEN_NAME:-}"
+PROXMOX_PASSWORD="${WINGMAN_PROXMOX_PASSWORD:-}"
+PROXMOX_TOKEN="${WINGMAN_PROXMOX_TOKEN:-}"
 
 if [[ "${AUTH_METHOD}" == "token" ]]; then
-  PROXMOX_USER="$(prompt "Proxmox user (e.g. root@pam)" "")"
-  PROXMOX_TOKEN_NAME="$(prompt "Proxmox token name" "")"
-  read -r -s -p "Proxmox API token (required, will not echo): " PROXMOX_TOKEN
-  printf "\n"
+  PROXMOX_USER="${PROXMOX_USER:-$(prompt "Proxmox user (e.g. root@pam)" "")}"
+  PROXMOX_TOKEN_NAME="${PROXMOX_TOKEN_NAME:-$(prompt "Proxmox token name" "")}"
+  if [[ -z "${PROXMOX_TOKEN}" && "${NONINTERACTIVE}" != "1" ]]; then
+    read -r -s -p "Proxmox API token (required, will not echo): " PROXMOX_TOKEN
+    printf "\n"
+  fi
   if [[ -z "${PROXMOX_TOKEN}" ]]; then
     echo "Proxmox token is required for token auth."
     exit 1
   fi
 else
-  PROXMOX_USER="$(prompt "Proxmox user (e.g. root@pam)" "")"
-  read -r -s -p "Proxmox password (required, will not echo): " PROXMOX_PASSWORD
-  printf "\n"
+  PROXMOX_USER="${PROXMOX_USER:-$(prompt "Proxmox user (e.g. root@pam)" "")}"
+  if [[ -z "${PROXMOX_PASSWORD}" && "${NONINTERACTIVE}" != "1" ]]; then
+    read -r -s -p "Proxmox password (required, will not echo): " PROXMOX_PASSWORD
+    printf "\n"
+  fi
   if [[ -z "${PROXMOX_PASSWORD}" ]]; then
     echo "Proxmox password is required for password auth."
     exit 1
@@ -197,6 +218,9 @@ WINGMAN_ALLOW_DANGEROUS_OPS=${ALLOW_DANGEROUS_OPS}
 WINGMAN_READ_ONLY=${READ_ONLY}
 ENV
 
+if [[ -n "${DOCKER_HOST_ADDR}" ]]; then
+  echo "DOCKER_HOST=${DOCKER_HOST_ADDR}" >> /opt/wingman/deploy/.env
+fi
 if [[ -n "${TIMEZONE}" ]]; then
   echo "TZ=${TIMEZONE}" >> /opt/wingman/deploy/.env
 fi
